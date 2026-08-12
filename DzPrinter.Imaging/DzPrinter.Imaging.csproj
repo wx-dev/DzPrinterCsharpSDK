@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Imaging</RootNamespace>
+    <AssemblyName>DzPrinter.Imaging</AssemblyName>
+    <!--
+      纯像素运算，Core 提供日志抽象。
+      Protocol 模块引用本项目以共享 DzImageData 与灰度算法。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+  </ItemGroup>
+
+</Project>

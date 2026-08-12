@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Core</RootNamespace>
+    <AssemblyName>DzPrinter.Core</AssemblyName>
+    <!--
+      Core 模块：DzPrinter 类库的公共基础。
+      包含日志抽象、传输接口、设备类型等跨模块共享定义。
+      本模块不引用任何其他 DzPrinter 模块，避免循环依赖。
+    -->
+  </PropertyGroup>
+
+</Project>

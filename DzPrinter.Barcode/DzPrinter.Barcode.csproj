@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Barcode</RootNamespace>
+    <AssemblyName>DzPrinter.Barcode</AssemblyName>
+    <!--
+      条码编码模块。对应 JS SDK 中以下类的功能：
+        - 1D 条码：m/D/S/U/F/$/j/W/J/V/at/ot/ct/ht/dt/ut/Pt/Ct/At/It/yt/bt/vt/Et/_t
+        - 2D 条码（QR）：wt/Tt/Ot/St/Bt/Nt/kt/Jt/Vt/zt/qt/Zt/Yt/Qt/te/ee/ie/re/oe/ce/he/ue
+      自研算法逐字节翻译，未使用 ZXing 等第三方库。
+      依赖 Core 提供日志抽象。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+  </ItemGroup>
+
+</Project>

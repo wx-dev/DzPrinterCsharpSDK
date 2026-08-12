@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Transport</RootNamespace>
+    <AssemblyName>DzPrinter.Transport</AssemblyName>
+    <!--
+      传输层抽象模块。
+      职责：
+        1. 传输层接口 (IDeviceTransport) + 连接状态枚举 (ConnectionState/TransportType) + 设备信息 (DeviceInfo)
+        2. 设备连接基类 (DeviceConnection) + BLE/HID 派生类 + 选项类 (BleConnectionOptions/HidConnectionOptions)
+      对应 JS SDK 中以下类的功能：
+        - ai (DeviceConnection) / hi (BleConnection) —— 位于 Printer 子域，但归属于 Transport 层。
+      平台无关，不引用任何 Windows SDK。
+      依赖 Core (日志、工具、枚举重定向)。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+  </ItemGroup>
+
+</Project>

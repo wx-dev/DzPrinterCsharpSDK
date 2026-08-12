@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Transport.Hid</RootNamespace>
+    <AssemblyName>DzPrinter.Transport.Hid</AssemblyName>
+    <!--
+      Windows HID USB 传输实现（基于 HidSharp 库）。
+      对应 JS 中的 He (WebHID) 与 USB 传输逻辑。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HidSharp" Version="2.1.0" />
+  </ItemGroup>
+
+</Project>

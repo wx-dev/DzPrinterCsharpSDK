@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Printer</RootNamespace>
+    <AssemblyName>DzPrinter.Printer</AssemblyName>
+    <!--
+      打印机模块。对应 JS SDK 中以下类的功能：
+        - 枚举：LPA_DeviceType/EPrintStatus/EDataSendMode/LPA_DeviceConnectType/
+               LPA_GattProperty/CharacteristicProperty/ValueType/LPA_JobAction/
+               LPA_JobName/LPA_Result/LPA_Printable/LPA_GapType/LPA_PrintSpeed/
+               LPA_PrintDarkness/Barcode2DType/DrawType/BarcodeType
+        - 工具：GBKUtils/DzTextEncoder/DzTextDecoder/LPAUtils/Ie(DzUtil)
+        - 连接：DeviceConnection/BleConnection/DeviceManager
+        - 核心：LPAPI/LPAPIFactory/DzPrinter
+        - 标签：WdfxParser/LabelContext/DrawContext
+      依赖 Core + Imaging + Barcode + Drawing + Protocol。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+    <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
+    <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
+    <ProjectReference Include="..\DzPrinter.Protocol\DzPrinter.Protocol.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+  </ItemGroup>
+
+</Project>

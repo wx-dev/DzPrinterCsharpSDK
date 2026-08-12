@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>DzPrinter.Tests</RootNamespace>
+    <AssemblyName>DzPrinter.Tests</AssemblyName>
+    <!--
+      Transport + Printer 层单元测试。
+      平台相关实现 (WinRT BLE / HidSharp) 通过 Mock IDeviceTransport 覆盖；
+      设备连接管理、状态机、分片发送、LPAPI 画布→编码→打印流程用纯内存驱动。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+    <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
+    <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
+    <ProjectReference Include="..\DzPrinter.Protocol\DzPrinter.Protocol.csproj" />
+    <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
+    <ProjectReference Include="..\DzPrinter.Printer\DzPrinter.Printer.csproj" />
+    <ProjectReference Include="..\DzPrinter.Jobs\DzPrinter.Jobs.csproj" />
+  </ItemGroup>
+
+</Project>

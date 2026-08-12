@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Drawing</RootNamespace>
+    <AssemblyName>DzPrinter.Drawing</AssemblyName>
+    <!--
+      绘图模块。对应 JS SDK 中以下类的功能：
+        - 枚举：FontStyle/Alignment/RotateMode/AntiColorMode/BorderAlign/WrapMode/ScaleUnit/BarcodeTextPos/TextDecoration
+        - 类：o (LineSpaceMode) / r (RectUtils 部分) / c (PrinterJob) / h (PrinterJobMM)
+      JS 使用 HTML5 Canvas 2D Context；C# 使用 SkiaSharp (SKCanvas) 作为跨平台渲染后端。
+      字体策略：依赖系统已安装字体，不打包字体文件。
+      依赖 Core (日志) + Imaging (DzImageData) + Barcode (BitMatrix/BarcodeEncodeResult)。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+    <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
+  </ItemGroup>
+
+</Project>

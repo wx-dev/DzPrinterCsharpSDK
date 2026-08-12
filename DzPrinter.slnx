@@ -1,0 +1,14 @@
+<Solution>
+  <Project Path="DzPrinter.Barcode/DzPrinter.Barcode.csproj" />
+  <Project Path="DzPrinter.Core/DzPrinter.Core.csproj" />
+  <Project Path="DzPrinter.Drawing/DzPrinter.Drawing.csproj" />
+  <Project Path="DzPrinter.Imaging/DzPrinter.Imaging.csproj" />
+  <Project Path="DzPrinter.Jobs/DzPrinter.Jobs.csproj" />
+  <Project Path="DzPrinter.Printer/DzPrinter.Printer.csproj" />
+  <Project Path="DzPrinter.Protocol/DzPrinter.Protocol.csproj" />
+  <Project Path="DzPrinter.Samples/DzPrinter.Samples.csproj" />
+  <Project Path="DzPrinter.Tests/DzPrinter.Tests.csproj" />
+  <Project Path="DzPrinter.Transport.Ble/DzPrinter.Transport.Ble.csproj" />
+  <Project Path="DzPrinter.Transport.Hid/DzPrinter.Transport.Hid.csproj" />
+  <Project Path="DzPrinter.Transport/DzPrinter.Transport.csproj" />
+</Solution>

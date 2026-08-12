@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DzPrinter.Samples</RootNamespace>
+    <AssemblyName>DzPrinter.Samples</AssemblyName>
+    <!--
+      示例项目需要同时引用 BLE(WinRT) 和 HID(HidSharp) 两个 Windows 传输层。
+      目标框架取 net8.0-windows10.0.19041.0 以满足 WinRT 依赖。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport.Ble\DzPrinter.Transport.Ble.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport.Hid\DzPrinter.Transport.Hid.csproj" />
+    <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
+    <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
+    <ProjectReference Include="..\DzPrinter.Protocol\DzPrinter.Protocol.csproj" />
+    <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
+    <ProjectReference Include="..\DzPrinter.Jobs\DzPrinter.Jobs.csproj" />
+  </ItemGroup>
+
+</Project>
