@@ -1,6 +1,6 @@
 using DzPrinter.Imaging;
 
-namespace DzPrinter.Protocol;
+namespace DzPrinter.Printer;
 
 /// <summary>
 /// 打印作业参数。对应 JS <see cref="PrintEncoder"/> 中合并后的 <c>t</c> 对象
@@ -64,6 +64,22 @@ public sealed class PrintImageOptions
 
     /// <summary>总页数。JS: <c>PageCount</c>。</summary>
     public int PageCount { get; set; }
+
+    /// <summary>
+    /// 从 PrinterInfo 创建打印参数。供 LPAPI 与 DrawContext 共用，消除重复装配。
+    /// </summary>
+    public static PrintImageOptions Create(DzImageData imageData, PrinterInfo printerInfo, int orientation = 0) => new()
+    {
+        ImageData = imageData,
+        PrinterDpi = printerInfo.PrinterDpi,
+        PrinterWidth = printerInfo.PrinterWidth,
+        GapType = (int)printerInfo.GapType,
+        GapLength = printerInfo.GapLength,
+        PrintDarkness = (int)printerInfo.Darkness,
+        PrintSpeed = (int)printerInfo.Speed,
+        PageCount = printerInfo.PageCount,
+        Orientation = orientation,
+    };
 }
 
 /// <summary>

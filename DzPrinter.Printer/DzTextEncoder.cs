@@ -18,16 +18,10 @@ public static class DzTextEncoder
     /// </param>
     /// <returns>编码后的字节数组。</returns>
     public static byte[] Encode(string text, string encoding = "utf-8") =>
-        NormalizeEncoding(encoding) switch
+        GbkUtils.NormalizeEncoding(encoding) switch
         {
             "gbk" => GbkUtils.Encode(text),
             "ascii" => Encoding.ASCII.GetBytes(text),
             _ => Encoding.UTF8.GetBytes(text)
         };
-
-    /// <summary>
-    /// 规范化编码名称：转小写并去除分隔符，便于匹配。
-    /// </summary>
-    private static string NormalizeEncoding(string encoding) =>
-        (encoding ?? string.Empty).ToLowerInvariant().Replace("-", "");
 }

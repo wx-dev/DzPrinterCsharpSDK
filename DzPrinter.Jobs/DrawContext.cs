@@ -1,17 +1,6 @@
-// =====================================================================
-//  DrawContext：一次"绘制作业"上下文。
-//
-//  对应 JS SDK 中 "DrawContext"（uni-app Canvas 绘制环境）在 C# 中的抽象。
-//  职责：
-//    1. 持有 PrinterCanvasMm / DrawOptions。
-//    2. 从 WDFX 模板绘制（如果提供）。
-//    3. 提供便捷的 DrawText / DrawBarcode / DrawImage 封装。
-//    4. 把画布内容通过 PrintEncoder 编码为协议分片（EncodeChunks）。
-// =====================================================================
-
 using DzPrinter.Core;
 using DzPrinter.Drawing;
-using DzPrinter.Protocol;
+using DzPrinter.Printer;
 
 namespace DzPrinter.Jobs;
 
@@ -24,21 +13,9 @@ public sealed class DrawJobOptions
     public double HeightMm { get; set; }
     /// <summary>方向：0/1/2/3。</summary>
     public int Orientation { get; set; }
-    /// <summary>打印机 DPI（默认 203）。</summary>
-    public int PrinterDpi { get; set; } = 203;
-    /// <summary>打印机像素宽度。</summary>
-    public int PrinterWidth { get; set; }
-    /// <summary>纸张类型。</summary>
-    public int GapType { get; set; }
-    /// <summary>间隙长度。</summary>
-    public int GapLength { get; set; }
-    /// <summary>浓度。</summary>
-    public int PrintDarkness { get; set; }
-    /// <summary>速度。</summary>
-    public int PrintSpeed { get; set; }
-    /// <summary>打印份数。</summary>
-    public int PageCount { get; set; } = 1;
-    /// <summary>标签模板（可选）。若有，会在 Start 时自动绘制。</summary>
+    /// <summary>打印参数（浓度/速度/间隙/DPI/宽度/份数等）。</summary>
+    public PrinterInfo PrinterInfo { get; set; } = new();
+    /// <summary>标签模板（可选）。若有，会在 Start 时通过 LabelContext 自动渲染。</summary>
     public string? WdfxTemplateXml { get; set; }
     /// <summary>标签模板变量字典（可选），用于 WDFX 模板插值。</summary>
     public IReadOnlyDictionary<string, object?>? TemplateVariables { get; set; }
@@ -74,33 +51,48 @@ public sealed class DrawContext : IDisposable
     public DrawJobOptions Options => _options;
 
     /// <summary>
-    /// 启动绘制作业：创建画布，若指定 WDFX 模板则自动绘制模板。
+    /// 启动绘制作业：创建画布，若指定 WDFX 模板则通过 LabelContext 自动渲染。
     /// </summary>
     public PrinterCanvasMm Start()
     {
+        // WDFX 模板模式：委托 LabelContext 渲染
+        if (!string.IsNullOrEmpty(_options.WdfxTemplateXml))
+        {
+            try
+            {
+                var pi = _options.PrinterInfo;
+                var labelCtx = new LabelContext(pi.PrinterWidth, pi.PrinterDpi);
+                if (labelCtx.DrawLabelFromXml(_options.WdfxTemplateXml, pi.PrinterWidth))
+                {
+                    _canvas = labelCtx.Canvas;
+                    Log.Info("【DrawContext】WDFX 模板渲染成功");
+                    return _canvas;
+                }
+                Log.Warn("【DrawContext】WDFX 模板渲染失败，回退到常规画布");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"【DrawContext】WDFX 模板渲染异常: {ex.Message}，回退到常规画布");
+            }
+        }
+
+        // 常规画布创建
+        var pi2 = _options.PrinterInfo;
         var drawOpts = new DrawOptions
         {
             Width = _options.WidthMm,
             Height = _options.HeightMm,
             Orientation = _options.Orientation,
-            Dpi = _options.PrinterDpi,
-            PrinterWidth = _options.PrinterWidth,
+            Dpi = pi2.PrinterDpi,
+            PrinterWidth = (int)pi2.PrinterWidth,
         };
         _canvas = new PrinterCanvasMm(drawOpts);
-        var baseCvs = _canvas.Base;
-        baseCvs.StartJob(drawOpts);
-
-        if (!string.IsNullOrEmpty(_options.WdfxTemplateXml))
-        {
-            Log.Warn("【DrawContext】WDFX 模板渲染目前需要外部提供 LabelContext，已跳过。");
-        }
-
+        _canvas.Base.StartJob(drawOpts);
         return _canvas;
     }
 
     /// <summary>
     /// 完成绘制作业，返回最终位图（SKBitmap）。
-    /// 对应 JS 中 uni-app Canvas 把 canvas 导出图像。
     /// </summary>
     public SkiaSharp.SKBitmap Commit()
     {
@@ -110,30 +102,16 @@ public sealed class DrawContext : IDisposable
 
     /// <summary>
     /// 把当前画布内容编码为打印协议分片列表。
-    /// 对应 JS <c>encodeImageData()</c>。
     /// </summary>
     public List<byte[]> EncodeChunks()
     {
         if (_canvas == null) throw new InvalidOperationException("未 Start()。");
         var img = _canvas.GetImageData();
-        var opts = new PrintImageOptions
-        {
-            ImageData = img,
-            PrinterDpi = _options.PrinterDpi,
-            PrinterWidth = _options.PrinterWidth,
-            GapType = _options.GapType,
-            GapLength = _options.GapLength,
-            PrintDarkness = _options.PrintDarkness,
-            PrintSpeed = _options.PrintSpeed,
-            PageCount = _options.PageCount,
-            Orientation = _canvas.Base.Orientation,
-        };
+        var opts = PrintImageOptions.Create(img, _options.PrinterInfo, _canvas.Base.Orientation);
         return PrintEncoder.EncodeImageData(img, opts);
     }
 
-    /// <summary>
-    /// 获取当前画布位图（供调试/预览）。
-    /// </summary>
+    /// <summary>获取当前画布位图（供调试/预览）。</summary>
     public SkiaSharp.SKBitmap? GetBitmap() => _canvas?.Base.Canvas;
 
     public void Dispose()

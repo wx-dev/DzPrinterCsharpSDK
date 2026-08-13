@@ -10,7 +10,7 @@
 
 using DzPrinter.Drawing;
 using DzPrinter.Jobs;
-using DzPrinter.Protocol;
+using DzPrinter.Printer;
 using DzPrinter.Tests.Infrastructure;
 using DzPrinter.Transport;
 
@@ -24,9 +24,12 @@ public class DrawContextLifecycleTests
         WidthMm = 60,
         HeightMm = 40,
         Orientation = 0,
-        PrinterDpi = 203,
-        PrinterWidth = 384,
-        PageCount = 1,
+        PrinterInfo = new PrinterInfo
+        {
+            PrinterDpi = 203,
+            PrinterWidth = 384,
+            PageCount = 1,
+        },
     };
 
     [Fact]
@@ -157,11 +160,11 @@ public class DrawContextErrorTests
 #region 3. DzPrinterManager 全链路
 public class DzPrinterManagerTests
 {
-    private static DeviceInfo TestDevice() => new()
+    private static PrinterDevice TestDevice() => new()
     {
         DeviceId = "test-001",
-        DeviceName = "P2-TEST",
-        TransportType = TransportType.BluetoothLowEnergy,
+        Name = "P2-TEST",
+        DeviceType = LpaDeviceType.WebBle,
     };
 
     [Fact]
@@ -169,7 +172,15 @@ public class DzPrinterManagerTests
     {
         var transport = new MockTransport
         {
-            DiscoverDevices = new[] { TestDevice() },
+            DiscoverDevices = new[]
+            {
+                new DeviceInfo
+                {
+                    DeviceId = "test-001",
+                    DeviceName = "P2-TEST",
+                    TransportType = TransportType.BluetoothLowEnergy,
+                },
+            },
         };
         using var manager = new DzPrinterManager(transport);
 
@@ -187,9 +198,12 @@ public class DzPrinterManagerTests
         {
             WidthMm = 60,
             HeightMm = 40,
-            PrinterDpi = 203,
-            PrinterWidth = 384,
-            PageCount = 1,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+                PageCount = 1,
+            },
         });
         ctx.Start();
         ctx.Canvas.DrawText(new DrawOptions
@@ -202,7 +216,7 @@ public class DzPrinterManagerTests
 
         // 4. 打印
         var result = await manager.PrintAsync(ctx);
-        result.Should().Be(PrintJobResult.Ok);
+        result.Should().Be(LpaResult.Ok);
         transport.SentFrames.Should().NotBeEmpty();
         transport.SentFrames.Sum(f => f.Length).Should().BeGreaterThan(0);
     }
@@ -216,7 +230,7 @@ public class DzPrinterManagerTests
         ctx.Start();
 
         var result = await manager.PrintAsync(ctx);
-        result.Should().Be(PrintJobResult.ErrorNoPrinter);
+        result.Should().Be(LpaResult.ErrorNoPrinter);
         transport.SentFrames.Should().BeEmpty();
     }
 
@@ -235,7 +249,7 @@ public class DzPrinterManagerTests
         var transport = new MockTransport();
         using var manager = new DzPrinterManager(transport);
         var result = await manager.SendRawAsync(new byte[] { 0x01, 0x02 });
-        result.Should().Be(PrintJobResult.ErrorNoPrinter);
+        result.Should().Be(LpaResult.ErrorNoPrinter);
     }
 
     [Fact]
@@ -246,7 +260,7 @@ public class DzPrinterManagerTests
         await manager.ConnectAsync(TestDevice());
 
         var result = await manager.SendRawAsync(new byte[] { 0xAA, 0xBB, 0xCC });
-        result.Should().Be(PrintJobResult.Ok);
+        result.Should().Be(LpaResult.Ok);
         transport.SentFrames.Should().HaveCount(1);
         transport.SentFrames[0].Should().Equal(0xAA, 0xBB, 0xCC);
     }

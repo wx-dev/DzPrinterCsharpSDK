@@ -2,7 +2,7 @@ namespace DzPrinter.Core;
 
 /// <summary>
 /// 统一日志抽象。对应 JS SDK 中被各模块引用的 <c>a</c> 日志对象。
-/// 各模块（Protocol/Imaging/Transport/Jobs）通过本类输出日志，
+/// 各模块（Printer/Imaging/Transport/Jobs）通过本类输出日志，
 /// 上层应用可注入 <see cref="ILogger"/> 实现来接管日志输出。
 /// </summary>
 /// <remarks>
@@ -57,8 +57,8 @@ internal sealed class DefaultLogger : ILogger
 {
     public static readonly DefaultLogger Instance = new();
 
-    public void Info(string message) => System.Diagnostics.Debug.WriteLine($"[DzPrinter/INFO] {message}");
-    public void Warn(string message) => System.Diagnostics.Debug.WriteLine($"[DzPrinter/WARN] {message}");
-    public void Error(string message) => System.Diagnostics.Debug.WriteLine($"[DzPrinter/ERROR] {message}");
-    public void Debug(string message) => System.Diagnostics.Debug.WriteLine($"[DzPrinter/DEBUG] {message}");
+    public void Info(string message) => System.Diagnostics.Trace.WriteLine($"[DzPrinter/INFO] {message}");
+    public void Warn(string message) => System.Diagnostics.Trace.WriteLine($"[DzPrinter/WARN] {message}");
+    public void Error(string message) => System.Diagnostics.Trace.WriteLine($"[DzPrinter/ERROR] {message}");
+    public void Debug(string message) => System.Diagnostics.Trace.WriteLine($"[DzPrinter/DEBUG] {message}");
 }

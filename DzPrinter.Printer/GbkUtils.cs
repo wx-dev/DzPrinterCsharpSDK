@@ -34,4 +34,11 @@ public static class GbkUtils
     /// <param name="bytes">GBK 编码的字节数组。</param>
     /// <returns>解码后的字符串。</returns>
     public static string Decode(byte[] bytes) => GbkEncoding.GetString(bytes);
+
+    /// <summary>
+    /// 规范化编码名称：转小写并去除分隔符，便于匹配。
+    /// 供 DzTextEncoder / DzTextDecoder 共用。
+    /// </summary>
+    public static string NormalizeEncoding(string encoding) =>
+        (encoding ?? string.Empty).ToLowerInvariant().Replace("-", "");
 }

@@ -49,9 +49,8 @@ DzPrinterCsharpSDK/
 ├── DzPrinter.Barcode/        # 1D/2D 条码编码引擎
 ├── DzPrinter.Drawing/        # 画布绘制（文本/图形/条码/图像）
 ├── DzPrinter.Imaging/        # 图像处理（二值化、半色调、反色等）
-├── DzPrinter.Protocol/       # 打印协议编码与分包
 ├── DzPrinter.Jobs/           # 作业管理：DzPrinterManager + DrawContext
-├── DzPrinter.Printer/        # 设备管理：DeviceManager + PrinterDevice
+├── DzPrinter.Printer/        # 设备管理 + 协议编码：DeviceManager + PrintEncoder + LPAPI
 ├── DzPrinter.Samples/        # 使用示例程序
 └── DzPrinter.Tests/          # 单元测试
 ```
@@ -75,6 +74,7 @@ dotnet add reference ../DzPrinter.Transport.Hid/DzPrinter.Transport.Hid.csproj
 ```csharp
 using DzPrinter.Drawing;
 using DzPrinter.Jobs;
+using DzPrinter.Printer;
 using DzPrinter.Transport;
 using DzPrinter.Transport.Ble;
 
@@ -105,9 +105,12 @@ using var ctx = manager.CreateDrawContext(new DrawJobOptions
     WidthMm = 60,
     HeightMm = 40,
     Orientation = 0,
-    PrinterDpi = 203,
-    PrinterWidth = 384,
-    PageCount = 1
+    PrinterInfo = new PrinterInfo
+    {
+        PrinterDpi = 203,
+        PrinterWidth = 384,
+        PageCount = 1
+    }
 });
 ctx.Start();
 
@@ -231,6 +234,7 @@ transport.DataReceived += (sender, e) =>
 ```csharp
 using DzPrinter.Jobs;
 using DzPrinter.Drawing;
+using DzPrinter.Printer;
 
 // 创建作业选项
 var options = new DrawJobOptions
@@ -238,13 +242,16 @@ var options = new DrawJobOptions
     WidthMm = 60,           // 标签宽度（毫米）
     HeightMm = 40,          // 标签高度（毫米）
     Orientation = 0,        // 方向：0=正常, 1=90°, 2=180°, 3=270°
-    PrinterDpi = 203,       // 打印机 DPI
-    PrinterWidth = 384,     // 打印机像素宽度
-    GapType = 2,            // 间隙类型：0=无, 1=孔洞, 2=间隙, 3=黑标, 4=透明
-    GapLength = 3,          // 间隙长度（毫米）
-    PrintDarkness = 6,      // 浓度：1-15
-    PrintSpeed = 3,         // 速度：1-5
-    PageCount = 1,          // 打印份数
+    PrinterInfo = new PrinterInfo
+    {
+        PrinterDpi = 203,       // 打印机 DPI
+        PrinterWidth = 384,     // 打印机像素宽度
+        GapType = LpaGapType.Gap,           // 间隙类型：None/Hole/Gap/Black/Trans
+        GapLength = 3,          // 间隙长度（毫米）
+        Darkness = LpaPrintDarkness.Normal, // 浓度
+        Speed = LpaPrintSpeed.Normal,       // 速度
+        PageCount = 1,          // 打印份数
+    },
 };
 
 using var ctx = manager.CreateDrawContext(options);
@@ -366,21 +373,20 @@ var result = await manager.PrintAsync(ctx);
 await manager.SendRawAsync(rawData);
 
 // 打印结果判断
-if (result == PrintJobResult.Ok)
+if (result == LpaResult.Ok)
     Console.WriteLine("打印成功");
 else
     Console.WriteLine($"打印失败: {result}");
 ```
 
-`PrintJobResult` 枚举值：
+`LpaResult` 枚举值：
 
 | 值 | 含义 |
 |---|---|
-| `Ok` | 成功 |
-| `ErrorNoPrinter` | 未连接打印机 |
-| `ErrorParam` | 参数错误 |
-| `ErrorDataSendError` | 数据发送失败 |
-| `ErrorEncode` | 编码错误 |
+| `Ok` | 成功（0） |
+| `ErrorParam` | 参数错误（1） |
+| `ErrorNoPrinter` | 无打印机（2） |
+| `ErrorDataSendError` | 数据发送错误（8） |
 
 ---
 

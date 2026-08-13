@@ -14,13 +14,14 @@ public static class ByteUtils
     {
         if (data.Length == 0) return string.Empty;
         var result = new char[data.Length * (spaceSeparated ? 3 : 2)];
-        for (int i = 0, j = 0; i < data.Length; i++)
+        int j = 0;
+        for (int i = 0; i < data.Length; i++)
         {
             result[j++] = "0123456789ABCDEF"[data[i] >> 4];
             result[j++] = "0123456789ABCDEF"[data[i] & 0x0F];
             if (spaceSeparated && i < data.Length - 1) result[j++] = ' ';
         }
-        return new string(result);
+        return new string(result, 0, j);
     }
 
     /// <summary>
@@ -42,8 +43,7 @@ public static class ByteUtils
     }
 
     /// <summary>
-    /// 将 4 字节大端序数组解析为 32 位整数。对应 JS <c>be.toNumber(b0,b1,b2,b3)</c>。
-    /// 参数顺序：低字节在前。
+    /// 按小端序将 4 个字节组装为 32 位整数（低字节在前）。对应 JS <c>be.toNumber(b0,b1,b2,b3)</c>。
     /// </summary>
     public static int ToNumber(int b0 = 0, int b1 = 0, int b2 = 0, int b3 = 0) =>
         (b0 & 0xFF) | ((b1 & 0xFF) << 8) | ((b2 & 0xFF) << 16) | ((b3 & 0xFF) << 24);

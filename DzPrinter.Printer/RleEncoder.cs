@@ -1,4 +1,4 @@
-namespace DzPrinter.Protocol;
+namespace DzPrinter.Printer;
 
 /// <summary>
 /// 位图行数据 RLE 压缩编码器：对应 JS SDK 中的 <c>we</c> 类。

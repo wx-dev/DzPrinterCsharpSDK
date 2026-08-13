@@ -12,7 +12,6 @@
 using DzPrinter.Imaging;
 using DzPrinter.Jobs;
 using DzPrinter.Printer;
-using DzPrinter.Protocol;
 using DzPrinter.Tests.Infrastructure;
 
 namespace DzPrinter.Tests.Protocol;
@@ -177,8 +176,11 @@ public class DrawContextProtocolHeaderTests
         {
             WidthMm = 60,
             HeightMm = 40,
-            PrinterDpi = 203,
-            PrinterWidth = 384,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+            },
         });
         ctx.Start();
         var chunks = ctx.EncodeChunks();
@@ -197,8 +199,11 @@ public class DrawContextProtocolHeaderTests
         {
             WidthMm = 40,
             HeightMm = 30,
-            PrinterDpi = 203,
-            PrinterWidth = 384,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+            },
         });
         ctx.Start();
         var chunks = ctx.EncodeChunks();
@@ -214,8 +219,11 @@ public class DrawContextProtocolHeaderTests
         {
             WidthMm = 40,
             HeightMm = 30,
-            PrinterDpi = 203,
-            PrinterWidth = 384,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+            },
         });
         ctx.Start();
         var chunks = ctx.EncodeChunks();
@@ -231,8 +239,11 @@ public class DrawContextProtocolHeaderTests
         {
             WidthMm = 40,
             HeightMm = 30,
-            PrinterDpi = 203,
-            PrinterWidth = 384,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+            },
         });
         ctx.Start();
         var chunks = ctx.EncodeChunks();

@@ -123,14 +123,16 @@ public static class WdfxParser
     {
         var attr = elem.Attribute(name);
         if (attr == null) return defaultValue;
-        return double.TryParse(attr.Value, out var v) ? v : defaultValue;
+        return double.TryParse(attr.Value, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : defaultValue;
     }
 
     private static int GetIntAttr(XElement elem, string name, int defaultValue)
     {
         var attr = elem.Attribute(name);
         if (attr == null) return defaultValue;
-        return int.TryParse(attr.Value, out var v) ? v : defaultValue;
+        return int.TryParse(attr.Value, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : defaultValue;
     }
 
     private static string? GetStringAttr(XElement elem, string name, string? defaultValue)

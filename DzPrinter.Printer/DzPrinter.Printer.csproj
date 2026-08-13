@@ -8,16 +8,17 @@
     <RootNamespace>DzPrinter.Printer</RootNamespace>
     <AssemblyName>DzPrinter.Printer</AssemblyName>
     <!--
-      打印机模块。对应 JS SDK 中以下类的功能：
-        - 枚举：LPA_DeviceType/EPrintStatus/EDataSendMode/LPA_DeviceConnectType/
+      打印机模块（含协议编码）。对应 JS SDK 中以下类的功能：
+        - 枚举：LPA_DeviceType/PrintStatus/DataSendMode/LPA_DeviceConnectType/
                LPA_GattProperty/CharacteristicProperty/ValueType/LPA_JobAction/
-               LPA_JobName/LPA_Result/LPA_Printable/LPA_GapType/LPA_PrintSpeed/
+               LPA_JobName/LPA_Result/PrinterStatusCode/LPA_GapType/LPA_PrintSpeed/
                LPA_PrintDarkness/Barcode2DType/DrawType/BarcodeType
         - 工具：GBKUtils/DzTextEncoder/DzTextDecoder/LPAUtils/Ie(DzUtil)
         - 连接：DeviceConnection/BleConnection/DeviceManager
         - 核心：LPAPI/LPAPIFactory/DzPrinter
-        - 标签：WdfxParser/LabelContext/DrawContext
-      依赖 Core + Imaging + Barcode + Drawing + Protocol。
+        - 标签：WdfxParser/LabelContext
+        - 协议：PrinterCommand/ProtocolPacket/PackageBuffer/PrintEncoder/RleEncoder
+      依赖 Core + Imaging + Barcode + Drawing + Transport。
     -->
   </PropertyGroup>
 
@@ -31,7 +32,6 @@
     <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
     <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
     <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
-    <ProjectReference Include="..\DzPrinter.Protocol\DzPrinter.Protocol.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
   </ItemGroup>
 

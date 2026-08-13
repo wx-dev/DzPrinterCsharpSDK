@@ -69,12 +69,8 @@ public static class SupportPrinterMatcher
 
     /// <summary>
     /// 尝试从设备名中提取机型名称。对应 JS <c>fi.getModelName(name)</c>。
-    /// 提取最后一个 "-" 后的部分；若无 "-" 则返回原名称。
+    /// 委托 <see cref="LpaUtils.GetModelName"/> 实现。
     /// </summary>
-    public static string GetModelName(string? name)
-    {
-        if (string.IsNullOrEmpty(name)) return string.Empty;
-        var idx = name.LastIndexOf('-');
-        return idx >= 0 ? name.Substring(idx + 1) : name;
-    }
+    public static string GetModelName(string? name) =>
+        string.IsNullOrEmpty(name) ? string.Empty : LpaUtils.GetModelName(name);
 }

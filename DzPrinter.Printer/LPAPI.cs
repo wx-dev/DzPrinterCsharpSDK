@@ -1,7 +1,6 @@
 using DzPrinter.Core;
 using DzPrinter.Drawing;
 using DzPrinter.Imaging;
-using DzPrinter.Protocol;
 using DzPrinter.Transport;
 
 namespace DzPrinter.Printer;
@@ -196,7 +195,7 @@ public sealed class LPAPI : IDisposable
             var conn = Connection!;
             Log.Info($"【LPAPI】PrintAsync() —— 发送 {chunks.Count} 个分片，共 {chunks.Sum(c => c.Length)} 字节");
 
-            conn.PrintStatus = EPrintStatus.Printing;
+            conn.PrintStatus = PrintStatus.Printing;
             try
             {
                 foreach (var chunk in chunks)
@@ -206,7 +205,7 @@ public sealed class LPAPI : IDisposable
             }
             finally
             {
-                conn.PrintStatus = EPrintStatus.ReadyPrint;
+                conn.PrintStatus = PrintStatus.ReadyPrint;
             }
             return LpaResult.Ok;
         }
@@ -242,21 +241,22 @@ public sealed class LPAPI : IDisposable
     /// 查询打印机可打印状态。对应 JS <c>getPrintableStatus(options)</c>。
     /// 发送 <see cref="PrinterCommand.CMD_IS_PRINTABLE"/> 查询帧并解析响应。
     /// </summary>
-    public async Task<LpaPrintable> GetPrintableStatusAsync(int timeoutMs = 2000,
+    public async Task<PrinterStatusCode> GetPrintableStatusAsync(int timeoutMs = 2000,
         CancellationToken cancellationToken = default)
     {
-        if (!IsConnected) return LpaPrintable.DzipEnvNotReady;
+        if (!IsConnected) return PrinterStatusCode.DZIP_ENVNOTREADY;
 
         // 构建查询帧：仅 CMD，无 payload。对应 JS 中的状态查询命令。
         var requestFrame = new ProtocolPacket(PrinterCommand.CMD_IS_PRINTABLE).GetBytes();
         var response = await Connection!.RequestAsync(requestFrame, timeoutMs, cancellationToken)
             .ConfigureAwait(false);
 
-        if (response == null || response.Length < 1)
-            return LpaPrintable.DzipEnvNotReady;
+        // 设备返回原始协议帧，需剥离帧头提取 payload
+        var payload = EbvHelper.TryGetPayload(response);
+        if (payload == null || payload.Length < 1)
+            return PrinterStatusCode.DZIP_ENVNOTREADY;
 
-        // 响应第一字节为状态码
-        return (LpaPrintable)response[0];
+        return (PrinterStatusCode)payload[0];
     }
 
     /// <summary>
@@ -272,9 +272,11 @@ public sealed class LPAPI : IDisposable
         var response = await Connection!.RequestAsync(requestFrame, timeoutMs, cancellationToken)
             .ConfigureAwait(false);
 
-        if (response == null || response.Length < 8) return null;
+        // 设备返回原始协议帧，需剥离帧头提取 payload
+        var payload = EbvHelper.TryGetPayload(response);
+        if (payload == null || payload.Length < 8) return null;
 
-        return PrinterHardwareInfo.Parse(response);
+        return PrinterHardwareInfo.Parse(payload);
     }
 
     // ============ 内部方法 ============
@@ -282,18 +284,8 @@ public sealed class LPAPI : IDisposable
     /// <summary>
     /// 根据当前 PrinterInfo 与画布构建打印参数。对应 JS <c>buildPrintOptions()</c>。
     /// </summary>
-    private PrintImageOptions BuildPrintOptions(DzImageData imageData) => new()
-    {
-        ImageData = imageData,
-        PrinterDpi = PrinterInfo.PrinterDpi,
-        PrinterWidth = (int)PrinterInfo.PrinterWidth,
-        GapType = (int)PrinterInfo.GapType,
-        GapLength = PrinterInfo.GapLength,
-        PrintDarkness = (int)PrinterInfo.Darkness,
-        PrintSpeed = (int)PrinterInfo.Speed,
-        PageCount = PrinterInfo.PageCount,
-        Orientation = Canvas?.Base.Orientation ?? 0,
-    };
+    private PrintImageOptions BuildPrintOptions(DzImageData imageData) =>
+        PrintImageOptions.Create(imageData, PrinterInfo, Canvas?.Base.Orientation ?? 0);
 
     // ============ IDisposable ============
 

@@ -14,8 +14,8 @@ using HidSharp;
 
 namespace DzPrinter.Transport.Hid;
 
-/// <summary>HID 连接选项。</summary>
-public sealed class HidConnectionOptions
+/// <summary>HID 传输层选项。</summary>
+public sealed class HidTransportOptions
 {
     /// <summary>如果为非空，按 VID 过滤设备。</summary>
     public int? VendorId { get; set; }
@@ -39,7 +39,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
 {
     private static readonly ILogger Log = DzLogger.Current;
 
-    private readonly HidConnectionOptions _options;
+    private readonly HidTransportOptions _options;
     private readonly object _sync = new();
     private HidDevice? _hidDevice;
     private HidStream? _hidStream;
@@ -50,11 +50,11 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
 
     private readonly List<byte> _readBuffer = new();
 
-    public HidSharpTransport() : this(new HidConnectionOptions()) { }
+    public HidSharpTransport() : this(new HidTransportOptions()) { }
 
-    public HidSharpTransport(HidConnectionOptions options)
+    public HidSharpTransport(HidTransportOptions options)
     {
-        _options = options ?? new HidConnectionOptions();
+        _options = options ?? new HidTransportOptions();
     }
 
     public Transport.ConnectionState State

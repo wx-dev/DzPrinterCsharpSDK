@@ -1,5 +1,5 @@
 // ReSharper disable InconsistentNaming
-namespace DzPrinter.Protocol;
+namespace DzPrinter.Printer;
 
 /// <summary>
 /// 打印机指令常量（对应 JS SDK 中 <c>xe</c> 类的 <c>CMD_*</c> 字段）。

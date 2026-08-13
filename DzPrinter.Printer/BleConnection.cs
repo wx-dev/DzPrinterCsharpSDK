@@ -111,7 +111,7 @@ public sealed class BleConnection : DeviceConnection
         }
 
         // 分片发送。对应 JS 中的 for 循环分包逻辑。
-        PrintStatus = EPrintStatus.Sending;
+        PrintStatus = PrintStatus.Sending;
         try
         {
             var offset = 0;
@@ -127,7 +127,7 @@ public sealed class BleConnection : DeviceConnection
         }
         finally
         {
-            PrintStatus = EPrintStatus.ReadyPrint;
+            PrintStatus = PrintStatus.ReadyPrint;
         }
     }
 }

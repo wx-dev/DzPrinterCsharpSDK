@@ -25,9 +25,9 @@
     <ProjectReference Include="..\DzPrinter.Transport.Hid\DzPrinter.Transport.Hid.csproj" />
     <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
     <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
-    <ProjectReference Include="..\DzPrinter.Protocol\DzPrinter.Protocol.csproj" />
     <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
     <ProjectReference Include="..\DzPrinter.Jobs\DzPrinter.Jobs.csproj" />
+    <ProjectReference Include="..\DzPrinter.Printer\DzPrinter.Printer.csproj" />
   </ItemGroup>
 
 </Project>

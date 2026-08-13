@@ -12,6 +12,7 @@
 
 using DzPrinter.Drawing;
 using DzPrinter.Jobs;
+using DzPrinter.Printer;
 using DzPrinter.Transport;
 using DzPrinter.Transport.Ble;
 using DzPrinter.Transport.Hid;
@@ -48,7 +49,7 @@ switch (mode)
 static async Task RunBleSampleAsync()
 {
     Console.WriteLine("[BLE] 创建 WinRtBleTransport ...");
-    using var transport = new WinRtBleTransport(new BleConnectionOptions
+    using var transport = new WinRtBleTransport(new BleTransportOptions
     {
         ServiceUuid = new Guid("000018F0-0000-1000-8000-00805F9B34FB"),
         PackSize = 20,         // MTU=23 - 3字节ATT头
@@ -64,7 +65,7 @@ static async Task RunBleSampleAsync()
 static async Task RunHidSampleAsync()
 {
     Console.WriteLine("[HID] 创建 HidSharpTransport ...");
-    using var transport = new HidSharpTransport(new HidConnectionOptions
+    using var transport = new HidSharpTransport(new HidTransportOptions
     {
         // 按需填写 VendorId / ProductId 过滤：
         // VendorId = 0x0483,
@@ -82,7 +83,7 @@ static async Task RunHidSampleAsync()
 static async Task ListDevicesAsync()
 {
     Console.WriteLine("--- BLE 设备 ---");
-    using var bleTransport = new WinRtBleTransport(new BleConnectionOptions { ScanTimeoutMs = 5000 });
+    using var bleTransport = new WinRtBleTransport(new BleTransportOptions { ScanTimeoutMs = 5000 });
     await ListFromTransportAsync(bleTransport);
 
     Console.WriteLine();
@@ -121,7 +122,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
 
     // 1. 发现设备
     Console.WriteLine($"[{label}] 正在扫描设备 ...");
-    IReadOnlyList<DeviceInfo> devices;
+    IReadOnlyList<PrinterDevice> devices;
     try
     {
         devices = await manager.DiscoverAsync();
@@ -141,7 +142,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
     Console.WriteLine($"[{label}] 发现 {devices.Count} 台设备:");
     for (var i = 0; i < devices.Count; i++)
     {
-        Console.WriteLine($"  {i}: {devices[i].DeviceName}  (ID: {devices[i].DeviceId})");
+        Console.WriteLine($"  {i}: {devices[i].Name}  (ID: {devices[i].DeviceId})");
     }
 
     // 2. 选择设备（默认第一台）
@@ -154,7 +155,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
             idx = n;
     }
     var device = devices[idx];
-    Console.WriteLine($"[{label}] 选中: {device.DeviceName}");
+    Console.WriteLine($"[{label}] 选中: {device.Name}");
 
     // 3. 连接
     Console.WriteLine($"[{label}] 正在连接 ...");
@@ -178,9 +179,12 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
             WidthMm = 60,
             HeightMm = 40,
             Orientation = 0,
-            PrinterDpi = 203,
-            PrinterWidth = 384,
-            PageCount = 1,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+                PageCount = 1,
+            },
         });
         ctx.Start();
 
@@ -232,7 +236,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
         var result = await manager.PrintAsync(ctx);
         Console.WriteLine($"[{label}] 打印结果: {result}");
 
-        if (result == PrintJobResult.Ok)
+        if (result == LpaResult.Ok)
         {
             Console.WriteLine($"[{label}] 打印成功！");
         }

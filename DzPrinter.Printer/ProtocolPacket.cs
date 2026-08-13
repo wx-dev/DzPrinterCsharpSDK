@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
-using System.Text;
 
-namespace DzPrinter.Protocol;
+namespace DzPrinter.Printer;
 
 /// <summary>
 /// EBV（Extended Byte Value）编码与 CRC 计算的静态助手。
@@ -144,6 +143,37 @@ public static class EbvHelper
         for (var i = start; i < end; i++)
             sum += buffer[i];
         return (byte)(~sum & 0xFF);
+    }
+
+    /// <summary>
+    /// 从原始协议帧中提取 payload（剥离帧头 0x1F、CMD、EBV 长度、CRC）。
+    /// 帧结构：[0x1F][CMD][EBV长度(1或2)][data...][CRC]。
+    /// </summary>
+    /// <param name="rawFrame">设备返回的原始字节。</param>
+    /// <returns>payload 字节数组；帧格式无效时返回 null。</returns>
+    public static byte[]? TryGetPayload(byte[]? rawFrame)
+    {
+        if (rawFrame == null || rawFrame.Length < 4) return null;
+        if (rawFrame[0] != ProtocolConstants.HostToDeviceDataStart) return null;
+
+        int dataOffset;
+        int dataLength;
+        if (rawFrame[2] >= ProtocolConstants.EbvThreshold)
+        {
+            if (rawFrame.Length < 5) return null;
+            dataLength = ((rawFrame[2] & 0x3F) << 8) | rawFrame[3];
+            dataOffset = 4;
+        }
+        else
+        {
+            dataLength = rawFrame[2];
+            dataOffset = 3;
+        }
+
+        if (rawFrame.Length < dataOffset + dataLength + 1) return null;
+        var payload = new byte[dataLength];
+        Array.Copy(rawFrame, dataOffset, payload, 0, dataLength);
+        return payload;
     }
 }
 
@@ -365,7 +395,6 @@ public sealed class ProtocolPacket
 
     /// <summary>
     /// 读取 GBK 编码的以 0 结尾字符串。对应 JS <c>be.popString()</c>。
-    /// 需在程序启动时注册 <c>CodePagesEncodingProvider</c>。
     /// </summary>
     public string PopString()
     {
@@ -378,7 +407,7 @@ public sealed class ProtocolPacket
 
         var bytes = new byte[end - start];
         for (var i = 0; i < bytes.Length; i++) bytes[i] = _data[start + i];
-        return GbkEncoding.GetString(bytes);
+        return GbkUtils.Decode(bytes);
     }
 
     /// <summary>读取剩余全部字节。对应 JS <c>be.popByteArray()</c>。</summary>
@@ -433,25 +462,4 @@ public sealed class ProtocolPacket
         if (_data.Count == 0) return;
         _data.CopyTo(dest, destOffset);
     }
-
-    /// <summary>GBK 编码（懒加载，需注册 CodePagesEncodingProvider）。</summary>
-    internal static Encoding GbkEncoding
-    {
-        get
-        {
-            if (_gbk is { } enc) return enc;
-            try
-            {
-                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-                _gbk = Encoding.GetEncoding("GBK");
-            }
-            catch
-            {
-                _gbk = Encoding.GetEncoding(936); // GBK 代码页回退
-            }
-            return _gbk;
-        }
-    }
-
-    private static Encoding? _gbk;
 }

@@ -51,7 +51,10 @@ public interface IDeviceTransport
     /// 发送数据并等待响应。对应 JS <c>requestMessage()</c> 的请求-响应模式。
     /// </summary>
     /// <param name="timeoutMs">超时毫秒数，默认 2000。</param>
-    /// <returns>响应数据；超时返回 null。</returns>
+    /// <returns>
+    /// 设备返回的原始字节数据（包含协议帧头 0x1F、CMD、EBV 长度、payload、CRC）。
+    /// 调用方需使用 <c>EbvHelper.TryGetPayload</c> 剥离帧头提取 payload。超时返回 null。
+    /// </returns>
     Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
         CancellationToken cancellationToken = default);
 

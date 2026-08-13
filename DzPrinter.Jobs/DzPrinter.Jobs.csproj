@@ -13,7 +13,7 @@
         - DrawContext     : 把 WDFX 模板绘制 + 标签画布绘制 + 协议编码串起来的一次"绘制作业"上下文。
         - DzPrinterManager: 高层管理器，负责设备选择、连接、创建画布、发起打印，
                             对应用户最高频使用的 Facade。
-      依赖：Core + Transport + Drawing + Imaging + Protocol + Barcode（可选 WDFX 解析）。
+      依赖：Core + Transport + Drawing + Imaging + Barcode + Printer。
       注意：Printer 模块中的 DeviceConnection / LPAPI 是上层 Facade，
             Jobs 层提供面向"打印作业"的另一个 Facade，二者可以并存。
     -->
@@ -25,11 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
     <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
     <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
-    <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
-    <ProjectReference Include="..\DzPrinter.Protocol\DzPrinter.Protocol.csproj" />
+    <ProjectReference Include="..\DzPrinter.Printer\DzPrinter.Printer.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
   </ItemGroup>
 

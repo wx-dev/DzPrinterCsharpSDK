@@ -9,7 +9,7 @@
     <AssemblyName>DzPrinter.Imaging</AssemblyName>
     <!--
       纯像素运算，Core 提供日志抽象。
-      Protocol 模块引用本项目以共享 DzImageData 与灰度算法。
+      Printer 模块引用本项目以共享 DzImageData 与灰度算法。
     -->
   </PropertyGroup>
 

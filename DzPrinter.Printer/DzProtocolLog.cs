@@ -1,6 +1,6 @@
 using DzPrinter.Core;
 
-namespace DzPrinter.Protocol;
+namespace DzPrinter.Printer;
 
 /// <summary>
 /// 协议层日志桥接：将 <see cref="DzLogger"/> 的日志包装为带模块前缀的输出。
@@ -8,7 +8,7 @@ namespace DzPrinter.Protocol;
 /// </summary>
 internal static class DzProtocolLog
 {
-    private const string Prefix = "DzPrinter.Protocol";
+    private const string Prefix = "DzPrinter.Printer";
 
     public static void Info(string message) => DzLogger.Info($"[{Prefix}] {message}");
     public static void Warn(string message) => DzLogger.Warn($"[{Prefix}] {message}");

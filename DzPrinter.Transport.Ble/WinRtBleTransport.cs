@@ -18,8 +18,8 @@ using Windows.Storage.Streams;
 
 namespace DzPrinter.Transport.Ble;
 
-/// <summary>BLE 连接选项。</summary>
-public sealed class BleConnectionOptions
+/// <summary>BLE 传输层选项。</summary>
+public sealed class BleTransportOptions
 {
     /// <summary>服务 UUID。默认德佟/璞趣通用服务 000018F0-0000-1000-8000-00805F9B34FB。</summary>
     public Guid ServiceUuid { get; set; } = new("000018F0-0000-1000-8000-00805F9B34FB");
@@ -41,7 +41,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
 {
     private static readonly ILogger Log = DzLogger.Current;
 
-    private readonly BleConnectionOptions _options;
+    private readonly BleTransportOptions _options;
     private readonly object _sync = new();
 
     private BluetoothLEAdvertisementWatcher? _watcher;
@@ -56,11 +56,11 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
     // 响应等待队列
     private readonly List<byte> _notifyBuffer = new();
 
-    public WinRtBleTransport() : this(new BleConnectionOptions()) { }
+    public WinRtBleTransport() : this(new BleTransportOptions()) { }
 
-    public WinRtBleTransport(BleConnectionOptions options)
+    public WinRtBleTransport(BleTransportOptions options)
     {
-        _options = options ?? new BleConnectionOptions();
+        _options = options ?? new BleTransportOptions();
     }
 
     // ============ 属性 ============

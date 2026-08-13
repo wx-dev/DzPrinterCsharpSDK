@@ -9,7 +9,7 @@
     <AssemblyName>DzPrinter.Core</AssemblyName>
     <!--
       Core 模块：DzPrinter 类库的公共基础。
-      包含日志抽象、传输接口、设备类型等跨模块共享定义。
+      包含日志抽象、字节工具、打印机状态辅助等跨模块共享定义。
       本模块不引用任何其他 DzPrinter 模块，避免循环依赖。
     -->
   </PropertyGroup>

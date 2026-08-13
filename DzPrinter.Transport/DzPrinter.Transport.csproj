@@ -10,12 +10,10 @@
     <!--
       传输层抽象模块。
       职责：
-        1. 传输层接口 (IDeviceTransport) + 连接状态枚举 (ConnectionState/TransportType) + 设备信息 (DeviceInfo)
-        2. 设备连接基类 (DeviceConnection) + BLE/HID 派生类 + 选项类 (BleConnectionOptions/HidConnectionOptions)
-      对应 JS SDK 中以下类的功能：
-        - ai (DeviceConnection) / hi (BleConnection) —— 位于 Printer 子域，但归属于 Transport 层。
+        传输层接口 (IDeviceTransport) + 连接状态枚举 (ConnectionState/TransportType) + 设备信息 (DeviceInfo)
       平台无关，不引用任何 Windows SDK。
-      依赖 Core (日志、工具、枚举重定向)。
+      设备连接实现 (DeviceConnection/BleConnection/HidConnection) 位于 Printer 层。
+      依赖 Core (日志、工具)。
     -->
   </PropertyGroup>
 

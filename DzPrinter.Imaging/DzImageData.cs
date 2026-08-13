@@ -6,7 +6,7 @@ namespace DzPrinter.Imaging;
 /// </summary>
 /// <remarks>
 /// 本类型是 Imaging 模块的" canonical home"（规范归属）。
-/// <see cref="DzPrinter.Protocol.PrintEncoder"/> 等协议层通过项目引用使用此类型。
+/// <see cref="DzPrinter.Printer.PrintEncoder"/> 等 Printer 层通过项目引用使用此类型。
 /// </remarks>
 public readonly record struct DzImageData(int Width, int Height, byte[] Data)
 {

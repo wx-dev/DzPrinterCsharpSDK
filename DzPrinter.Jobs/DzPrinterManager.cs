@@ -1,90 +1,54 @@
-// =====================================================================
-//  DzPrinterManager：打印管理器（Facade）。
-//
-//  对应 JS SDK 中对外最高层入口：发现设备 → 连接 → 绘制作业 → 打印。
-//  与 Printer 模块中的 LPAPI 差异：
-//    - LPAPI 绑定 DeviceConnection，语义更贴近 JS uni-app SDK。
-//    - DzPrinterManager 是"现代 C# Facade"，直接包装 IDeviceTransport + DrawContext。
-//  二者功能等价，长期可以合并。
-// =====================================================================
-
 using DzPrinter.Core;
+using DzPrinter.Printer;
 using DzPrinter.Transport;
 using ILogger = DzPrinter.Core.ILogger;
 
 namespace DzPrinter.Jobs;
 
-/// <summary>打印结果。与 Printer 模块 LpaResult 类似但不直接耦合。</summary>
-public enum PrintJobResult
-{
-    Ok = 0,
-    ErrorNoPrinter = -1,
-    ErrorParam = -2,
-    ErrorDataSendError = -3,
-    ErrorEncode = -4,
-}
-
 /// <summary>
-/// 高层打印管理器。
-/// <para>
-/// 典型用法：
-/// <code>
-/// using var manager = new DzPrinterManager(new WinRtBleTransport());
-/// var devices = await manager.DiscoverAsync();
-/// await manager.ConnectAsync(devices[0]);
-/// using var ctx = manager.CreateDrawContext(new DrawJobOptions { WidthMm=60, HeightMm=40 });
-/// ctx.Start();
-/// ctx.Canvas.DrawText("Hello", 5, 5, 10);
-/// await manager.PrintAsync(ctx);
-/// </code>
-/// </para>
+/// 高层打印管理器。内部委托 <see cref="LPAPI"/> 实现设备发现/连接/发送，
+/// 在此之上提供 <see cref="DrawContext"/> 作业管理。
 /// </summary>
 public sealed class DzPrinterManager : IDisposable
 {
     private static readonly ILogger Log = DzLogger.Current;
 
     private readonly IDeviceTransport _transport;
-    private DeviceInfo? _connected;
+    private readonly LPAPI _lpapi;
     private bool _disposed;
 
-    public DzPrinterManager(IDeviceTransport transport)
+    public DzPrinterManager(IDeviceTransport transport, PrinterInfo? printerInfo = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-        _transport.ConnectionStateChanged += OnState;
+        _lpapi = new LPAPI(_ => transport, printerInfo);
     }
 
     /// <summary>底层传输层。</summary>
     public IDeviceTransport Transport => _transport;
 
-    /// <summary>当前连接的设备。</summary>
-    public DeviceInfo? ConnectedDevice => _connected;
+    /// <summary>内部 LPAPI 实例。</summary>
+    public LPAPI Api => _lpapi;
 
     /// <summary>是否已连接。</summary>
-    public bool IsConnected => _transport.State == ConnectionState.Connected;
+    public bool IsConnected => _lpapi.IsConnected;
+
+    /// <summary>当前连接的设备。</summary>
+    public DeviceInfo? ConnectedDevice => _lpapi.ConnectedDevice;
 
     /// <summary>发现设备。</summary>
-    public Task<IReadOnlyList<DeviceInfo>> DiscoverAsync(
-        CancellationToken ct = default)
-    {
-        Log.Info("【DzPrinterManager】DiscoverAsync()");
-        return _transport.DiscoverAsync(ct);
-    }
+    public Task<IReadOnlyList<PrinterDevice>> DiscoverAsync(
+        LpaDeviceType deviceType = LpaDeviceType.Auto,
+        CancellationToken ct = default) =>
+        _lpapi.DiscoverAsync(deviceType, ct);
 
     /// <summary>连接到指定设备。</summary>
-    public async Task ConnectAsync(DeviceInfo device, CancellationToken ct = default)
-    {
-        Log.Info($"【DzPrinterManager】ConnectAsync({device})");
-        await _transport.ConnectAsync(device, ct).ConfigureAwait(false);
-        _connected = device;
-    }
+    public Task<LpaResult> ConnectAsync(PrinterDevice device,
+        CancellationToken ct = default) =>
+        _lpapi.ConnectAsync(device, ct);
 
     /// <summary>断开连接。</summary>
-    public async Task DisconnectAsync(CancellationToken ct = default)
-    {
-        Log.Info("【DzPrinterManager】DisconnectAsync()");
-        try { await _transport.DisconnectAsync(ct).ConfigureAwait(false); }
-        finally { _connected = null; }
-    }
+    public Task DisconnectAsync(CancellationToken ct = default) =>
+        _lpapi.DisconnectAsync(ct);
 
     /// <summary>创建绘制作业上下文。</summary>
     public DrawContext CreateDrawContext(DrawJobOptions options) => new(options);
@@ -92,66 +56,43 @@ public sealed class DzPrinterManager : IDisposable
     /// <summary>
     /// 发送打印作业。
     /// </summary>
-    /// <param name="context">已 Start/Commit 过的 DrawContext。</param>
-    /// <param name="ct">取消令牌。</param>
-    public async Task<PrintJobResult> PrintAsync(DrawContext context,
+    public async Task<LpaResult> PrintAsync(DrawContext context,
         CancellationToken ct = default)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
-        if (!IsConnected)
+        if (!_lpapi.IsConnected)
         {
             Log.Warn("【DzPrinterManager】PrintAsync() —— 未连接");
-            return PrintJobResult.ErrorNoPrinter;
+            return LpaResult.ErrorNoPrinter;
         }
         try
         {
             var chunks = context.EncodeChunks();
+            var conn = _lpapi.Connection!;
             Log.Info($"【DzPrinterManager】PrintAsync() —— {chunks.Count} 个分片，" +
                      $"共 {chunks.Sum(c => c.Length)} 字节");
             foreach (var chunk in chunks)
             {
-                await _transport.SendAsync(chunk, ct).ConfigureAwait(false);
+                await conn.SendAsync(chunk, ct).ConfigureAwait(false);
             }
-            return PrintJobResult.Ok;
+            return LpaResult.Ok;
         }
         catch (Exception ex)
         {
             Log.Error($"【DzPrinterManager】PrintAsync() 失败: {ex.Message}");
-            return PrintJobResult.ErrorDataSendError;
+            return LpaResult.ErrorDataSendError;
         }
     }
 
     /// <summary>发送原始字节数据。</summary>
-    public async Task<PrintJobResult> SendRawAsync(byte[] data,
-        CancellationToken ct = default)
-    {
-        if (!IsConnected) return PrintJobResult.ErrorNoPrinter;
-        try
-        {
-            await _transport.SendAsync(data, ct).ConfigureAwait(false);
-            return PrintJobResult.Ok;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"【DzPrinterManager】SendRawAsync() 失败: {ex.Message}");
-            return PrintJobResult.ErrorDataSendError;
-        }
-    }
-
-    private void OnState(object? sender, ConnectionStateChangedEventArgs e)
-    {
-        if (e.State == ConnectionState.Disconnected ||
-            e.State == ConnectionState.Failed)
-        {
-            _connected = null;
-        }
-    }
+    public Task<LpaResult> SendRawAsync(byte[] data,
+        CancellationToken ct = default) =>
+        _lpapi.SendRawDataAsync(data, ct);
 
     public void Dispose()
     {
         if (_disposed) return;
-        _transport.ConnectionStateChanged -= OnState;
-        try { _transport.DisconnectAsync().GetAwaiter().GetResult(); } catch { /* 忽略 */ }
+        _lpapi.Dispose();
         _disposed = true;
     }
 }

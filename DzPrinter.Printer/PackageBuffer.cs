@@ -1,4 +1,4 @@
-namespace DzPrinter.Protocol;
+namespace DzPrinter.Printer;
 
 /// <summary>
 /// 单个发送缓冲区：对应 JS SDK 中的 <c>ve</c> 类。

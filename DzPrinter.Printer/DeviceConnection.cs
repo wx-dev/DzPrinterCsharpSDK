@@ -41,7 +41,7 @@ public abstract class DeviceConnection : IDisposable
     /// <summary>同步锁。</summary>
     protected readonly object SyncRoot = new();
 
-    private EPrintStatus _printStatus = EPrintStatus.None;
+    private PrintStatus _printStatus = PrintStatus.None;
     private DeviceInfo? _connectedDevice;
     private bool _disposed;
 
@@ -65,7 +65,7 @@ public abstract class DeviceConnection : IDisposable
     }
 
     /// <summary>当前打印状态。对应 JS <c>mPrintStatus</c>。</summary>
-    public EPrintStatus PrintStatus
+    public PrintStatus PrintStatus
     {
         get { lock (SyncRoot) { return _printStatus; } }
         internal set { lock (SyncRoot) { _printStatus = value; } }
@@ -96,7 +96,7 @@ public abstract class DeviceConnection : IDisposable
     public event Action<byte[]>? DataReceived;
 
     /// <summary>打印状态变化事件。对应 JS <c>"printStatusChanged"</c>。</summary>
-    public event Action<EPrintStatus>? PrintStatusChanged;
+    public event Action<PrintStatus>? PrintStatusChanged;
 
     // ============ 公共方法 ============
 
@@ -134,10 +134,10 @@ public abstract class DeviceConnection : IDisposable
         if (device == null) throw new ArgumentNullException(nameof(device));
         Log.Info($"【DeviceConnection】ConnectAsync() —— device={device}");
 
-        PrintStatus = EPrintStatus.Connected;
+        PrintStatus = PrintStatus.Connected;
         await Transport.ConnectAsync(device, cancellationToken).ConfigureAwait(false);
         ConnectedDevice = device;
-        PrintStatus = EPrintStatus.ReadyPrint;
+        PrintStatus = PrintStatus.ReadyPrint;
         DeviceConnected?.Invoke(device);
     }
 
@@ -155,7 +155,7 @@ public abstract class DeviceConnection : IDisposable
         finally
         {
             ConnectedDevice = null;
-            PrintStatus = EPrintStatus.None;
+            PrintStatus = PrintStatus.None;
             DeviceDisconnected?.Invoke(prev, null);
         }
     }
@@ -169,14 +169,14 @@ public abstract class DeviceConnection : IDisposable
         if (!IsConnected)
             throw new InvalidOperationException("设备未连接，无法发送数据。");
         Log.Debug($"【DeviceConnection】SendAsync() —— {data.Length} bytes");
-        PrintStatus = EPrintStatus.Sending;
+        PrintStatus = PrintStatus.Sending;
         try
         {
             await Transport.SendAsync(data, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            PrintStatus = EPrintStatus.ReadyPrint;
+            PrintStatus = PrintStatus.ReadyPrint;
         }
     }
 
@@ -213,7 +213,7 @@ public abstract class DeviceConnection : IDisposable
         {
             var prev = ConnectedDevice;
             ConnectedDevice = null;
-            PrintStatus = EPrintStatus.None;
+            PrintStatus = PrintStatus.None;
             DeviceDisconnected?.Invoke(prev, e.Message);
         }
         Emitter.Emit("connectionStateChanged", e.State);
@@ -228,7 +228,7 @@ public abstract class DeviceConnection : IDisposable
     }
 
     /// <summary>触发打印状态变化事件。</summary>
-    protected void RaisePrintStatusChanged(EPrintStatus newStatus)
+    protected void RaisePrintStatusChanged(PrintStatus newStatus)
     {
         PrintStatus = newStatus;
         PrintStatusChanged?.Invoke(newStatus);

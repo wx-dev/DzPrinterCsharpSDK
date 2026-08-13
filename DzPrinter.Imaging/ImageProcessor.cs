@@ -18,7 +18,7 @@ namespace DzPrinter.Imaging;
 ///   匹配字面量 <c>[</c>，故 <c>#RGB</c> / <c>#RGBA</c> 短格式永不匹配，回退到默认值。</item>
 ///   <item><see cref="ProcessGrayImage"/> / <see cref="ProcessBlackWhiteImage"/> 使用
 ///   <c>0.3R + 0.59G + 0.11B</c>（十进制近似），而 <see cref="ToGray"/> 与
-///   <see cref="DzPrinter.Protocol.PrintEncoder.GetImageGrayValue"/> 使用定点整数
+///   <see cref="DzPrinter.Printer.PrintEncoder.GetImageGrayValue"/> 使用定点整数
 ///   <c>19661R + 38666G + 7209B &gt;&gt; 16</c>（即 0.299/0.587/0.114）。两者并存。</item>
 ///   <item><see cref="ToHalfTone_Jarvis"/> 最后一个误差分散项使用 <c>4*i+2</c>（而非
 ///   <c>4*(i+2)</c>），指向错误像素。JS Bug，原样保留。</item>

@@ -6,7 +6,7 @@ namespace DzPrinter.Printer;
 public sealed class PrinterInfo
 {
     /// <summary>打印机像素宽度（默认 384）。</summary>
-    public double PrinterWidth { get; set; } = 384;
+    public int PrinterWidth { get; set; } = 384;
 
     /// <summary>打印机 DPI（默认 203）。</summary>
     public int PrinterDpi { get; set; } = 203;

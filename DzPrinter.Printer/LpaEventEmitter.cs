@@ -8,6 +8,7 @@ public sealed class LpaEventEmitter
 {
     /// <summary>事件名称到处理器列表的映射。</summary>
     private readonly Dictionary<string, List<Action<object?>>> _listeners = new();
+    private readonly object _lock = new();
 
     /// <summary>
     /// 注册事件处理器。对应 JS <c>on(t, e)</c>。
@@ -17,12 +18,15 @@ public sealed class LpaEventEmitter
     public void On(string eventName, Action<object?> handler)
     {
         if (handler == null) return;
-        if (!_listeners.TryGetValue(eventName, out var list))
+        lock (_lock)
         {
-            list = new List<Action<object?>>();
-            _listeners[eventName] = list;
+            if (!_listeners.TryGetValue(eventName, out var list))
+            {
+                list = new List<Action<object?>>();
+                _listeners[eventName] = list;
+            }
+            list.Add(handler);
         }
-        list.Add(handler);
     }
 
     /// <summary>
@@ -33,9 +37,12 @@ public sealed class LpaEventEmitter
     public void Off(string eventName, Action<object?> handler)
     {
         if (handler == null) return;
-        if (_listeners.TryGetValue(eventName, out var list))
+        lock (_lock)
         {
-            list.Remove(handler);
+            if (_listeners.TryGetValue(eventName, out var list))
+            {
+                list.Remove(handler);
+            }
         }
     }
 
@@ -47,8 +54,12 @@ public sealed class LpaEventEmitter
     /// <param name="args">传递给处理器的参数。</param>
     public void Emit(string eventName, object? args)
     {
-        if (!_listeners.TryGetValue(eventName, out var list) || list.Count == 0) return;
-        var snapshot = list.ToArray();
+        Action<object?>[] snapshot;
+        lock (_lock)
+        {
+            if (!_listeners.TryGetValue(eventName, out var list) || list.Count == 0) return;
+            snapshot = list.ToArray();
+        }
         foreach (var handler in snapshot)
         {
             handler(args);
