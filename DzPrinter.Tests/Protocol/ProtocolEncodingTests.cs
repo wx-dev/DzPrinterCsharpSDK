@@ -39,7 +39,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
@@ -58,7 +58,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
@@ -76,7 +76,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
@@ -101,7 +101,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
@@ -121,7 +121,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
@@ -138,7 +138,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
@@ -154,7 +154,7 @@ public class LpApiProtocolHeaderTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
         });
         api.CreateCanvas(60, 40);
         await api.PrintAsync();

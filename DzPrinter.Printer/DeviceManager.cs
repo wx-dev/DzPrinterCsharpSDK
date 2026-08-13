@@ -113,7 +113,7 @@ public sealed class DeviceManager : IDisposable
 
         // 确定要扫描的设备类型列表
         var typesToScan = deviceType == LpaDeviceType.Auto
-            ? new[] { LpaDeviceType.WebBle, LpaDeviceType.WebHid }
+            ? new[] { LpaDeviceType.Ble, LpaDeviceType.UsbHid }
             : new[] { deviceType };
 
         var allDevices = new List<PrinterDevice>();
@@ -176,7 +176,7 @@ public sealed class DeviceManager : IDisposable
         {
             DeviceId = device.DeviceId,
             DeviceName = device.Name,
-            TransportType = device.DeviceType == LpaDeviceType.WebBle
+            TransportType = device.DeviceType == LpaDeviceType.Ble
                 ? TransportType.BluetoothLowEnergy
                 : TransportType.HidUsb,
             Dpi = LpaUtils.GetDeviceDPI(device.ModelName),
@@ -275,8 +275,8 @@ public sealed class DeviceManager : IDisposable
     private static DeviceConnection CreateConnection(LpaDeviceType type, IDeviceTransport transport) =>
         type switch
         {
-            LpaDeviceType.WebBle => new BleConnection(transport),
-            LpaDeviceType.WebHid => new HidConnection(transport),
+            LpaDeviceType.Ble => new BleConnection(transport),
+            LpaDeviceType.UsbHid => new HidConnection(transport),
             _ => new BleConnection(transport)
         };
 

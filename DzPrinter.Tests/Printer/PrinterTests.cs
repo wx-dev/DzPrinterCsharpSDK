@@ -196,7 +196,7 @@ public class DeviceManagerTests
 
         var manager = CreateManagerWithFactory(t => t switch
         {
-            LpaDeviceType.WebBle => bleTransport,
+            LpaDeviceType.Ble => bleTransport,
             _ => hidTransport,
         });
 
@@ -215,7 +215,7 @@ public class DeviceManagerTests
         };
         var manager = CreateManagerWithFactory(_ => transport);
 
-        var devices = await manager.DiscoverAsync(LpaDeviceType.WebBle);
+        var devices = await manager.DiscoverAsync(LpaDeviceType.Ble);
         await manager.ConnectAsync(devices[0]);
         manager.GetActiveConnection()?.IsConnected.Should().BeTrue();
         transport.ConnectCalls.Should().Be(1);
@@ -234,7 +234,7 @@ public class DeviceManagerTests
         manager.GetActiveConnection().Should().BeNull();
 
         transport.DiscoverDevices = new[] { new DeviceInfo { DeviceId = "x", DeviceName = "P2-1" } };
-        var devices = await manager.DiscoverAsync(LpaDeviceType.WebBle);
+        var devices = await manager.DiscoverAsync(LpaDeviceType.Ble);
         await manager.ConnectAsync(devices[0]);
         manager.GetActiveConnection()?.IsConnected.Should().BeTrue();
     }
@@ -248,7 +248,7 @@ public class DeviceManagerTests
         };
         var manager = CreateManagerWithFactory(_ => transport);
 
-        var devices = await manager.DiscoverAsync(LpaDeviceType.WebBle);
+        var devices = await manager.DiscoverAsync(LpaDeviceType.Ble);
         await manager.ConnectAsync(devices[0]);
         manager.Dispose();
         transport.State.Should().Be(ConnectionState.Disconnected);
@@ -284,7 +284,7 @@ public class LpApiIntegrationTests
     {
         var api = CreateLpApi(out var transport);
         transport.DiscoverDevices = new[] { new DeviceInfo { DeviceId = "1", DeviceName = "P2-TEST" } };
-        var devices = await api.DiscoverAsync(LpaDeviceType.WebBle);
+        var devices = await api.DiscoverAsync(LpaDeviceType.Ble);
         await api.ConnectAsync(devices[0]);
 
         var result = await api.PrintAsync();
@@ -300,7 +300,7 @@ public class LpApiIntegrationTests
         {
             DeviceId = "001122",
             Name = "P2-SDK",
-            DeviceType = LpaDeviceType.WebBle,
+            DeviceType = LpaDeviceType.Ble,
             ModelName = "SDK",
         };
         await api.ConnectAsync(device);

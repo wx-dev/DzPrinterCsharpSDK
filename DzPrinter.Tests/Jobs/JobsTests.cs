@@ -164,7 +164,7 @@ public class DzPrinterManagerTests
     {
         DeviceId = "test-001",
         Name = "P2-TEST",
-        DeviceType = LpaDeviceType.WebBle,
+        DeviceType = LpaDeviceType.Ble,
     };
 
     [Fact]

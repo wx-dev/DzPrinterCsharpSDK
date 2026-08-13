@@ -14,11 +14,11 @@ public enum LpaDeviceType
     /// <summary>自动检测。JS: AUTO=0。</summary>
     Auto = 0,
 
-    /// <summary>Web BLE。JS: WEB_BLE=100。</summary>
-    WebBle = 100,
+    /// <summary>BLE JS: WEB_BLE=100。</summary>
+    Ble = 100,
 
-    /// <summary>Web HID。JS: WEB_HID=101。</summary>
-    WebHid = 101
+    /// <summary>USB HID。JS: WEB_HID=101。</summary>
+    UsbHid = 101
 }
 
 /// <summary>

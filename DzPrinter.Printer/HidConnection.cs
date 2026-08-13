@@ -36,7 +36,7 @@ public sealed class HidConnection : DeviceConnection
     public ushort UsagePage { get; set; }
 
     /// <inheritdoc />
-    public override LpaDeviceType DeviceType => LpaDeviceType.WebHid;
+    public override LpaDeviceType DeviceType => LpaDeviceType.UsbHid;
 
     /// <summary>
     /// 构造 HID 连接。

@@ -68,7 +68,7 @@ public sealed class BleConnection : DeviceConnection
     public int SendIntervalMs { get; set; } = 20;
 
     /// <inheritdoc />
-    public override LpaDeviceType DeviceType => LpaDeviceType.WebBle;
+    public override LpaDeviceType DeviceType => LpaDeviceType.Ble;
 
     /// <summary>
     /// 构造 BLE 连接。对应 JS <c>hi.constructor(options)</c>。
