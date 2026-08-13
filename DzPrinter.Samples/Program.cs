@@ -161,11 +161,21 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
     Console.WriteLine($"[{label}] 正在连接 ...");
     try
     {
-        await manager.ConnectAsync(device);
+        var connectResult = await manager.ConnectAsync(device);
+        if (connectResult != LpaResult.Ok)
+        {
+            Console.WriteLine($"[{label}] 连接失败: {connectResult}");
+            return;
+        }
+        if (!manager.IsConnected)
+        {
+            Console.WriteLine($"[{label}] 连接失败: 连接状态未就绪");
+            return;
+        }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[{label}] 连接失败: {ex.Message}");
+        Console.WriteLine($"[{label}] 连接异常: {ex.Message}");
         return;
     }
     Console.WriteLine($"[{label}] 连接成功！");

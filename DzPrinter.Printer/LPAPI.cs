@@ -177,7 +177,8 @@ public sealed class LPAPI : IDisposable
     /// <param name="cancellationToken">取消令牌。</param>
     public async Task<LpaResult> PrintAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsConnected)
+        var conn = Connection;
+        if (conn == null || !conn.IsConnected)
         {
             Log.Warn("【LPAPI】PrintAsync() —— 设备未连接");
             return LpaResult.ErrorNoPrinter;
@@ -192,7 +193,6 @@ public sealed class LPAPI : IDisposable
         try
         {
             var chunks = EncodePrintData();
-            var conn = Connection!;
             Log.Info($"【LPAPI】PrintAsync() —— 发送 {chunks.Count} 个分片，共 {chunks.Sum(c => c.Length)} 字节");
 
             conn.PrintStatus = PrintStatus.Printing;
@@ -222,10 +222,11 @@ public sealed class LPAPI : IDisposable
     public async Task<LpaResult> SendRawDataAsync(byte[] data,
         CancellationToken cancellationToken = default)
     {
-        if (!IsConnected) return LpaResult.ErrorNoPrinter;
+        var conn = Connection;
+        if (conn == null || !conn.IsConnected) return LpaResult.ErrorNoPrinter;
         try
         {
-            await Connection!.SendAsync(data, cancellationToken).ConfigureAwait(false);
+            await conn.SendAsync(data, cancellationToken).ConfigureAwait(false);
             return LpaResult.Ok;
         }
         catch (Exception ex)
@@ -244,11 +245,12 @@ public sealed class LPAPI : IDisposable
     public async Task<PrinterStatusCode> GetPrintableStatusAsync(int timeoutMs = 2000,
         CancellationToken cancellationToken = default)
     {
-        if (!IsConnected) return PrinterStatusCode.DZIP_ENVNOTREADY;
+        var conn = Connection;
+        if (conn == null || !conn.IsConnected) return PrinterStatusCode.DZIP_ENVNOTREADY;
 
         // 构建查询帧：仅 CMD，无 payload。对应 JS 中的状态查询命令。
         var requestFrame = new ProtocolPacket(PrinterCommand.CMD_IS_PRINTABLE).GetBytes();
-        var response = await Connection!.RequestAsync(requestFrame, timeoutMs, cancellationToken)
+        var response = await conn.RequestAsync(requestFrame, timeoutMs, cancellationToken)
             .ConfigureAwait(false);
 
         // 设备返回原始协议帧，需剥离帧头提取 payload
@@ -266,10 +268,11 @@ public sealed class LPAPI : IDisposable
     public async Task<PrinterHardwareInfo?> GetPrinterInfoAsync(int timeoutMs = 2000,
         CancellationToken cancellationToken = default)
     {
-        if (!IsConnected) return null;
+        var conn = Connection;
+        if (conn == null || !conn.IsConnected) return null;
 
         var requestFrame = new ProtocolPacket(PrinterCommand.CMD_DEV_HANDSHAKE).GetBytes();
-        var response = await Connection!.RequestAsync(requestFrame, timeoutMs, cancellationToken)
+        var response = await conn.RequestAsync(requestFrame, timeoutMs, cancellationToken)
             .ConfigureAwait(false);
 
         // 设备返回原始协议帧，需剥离帧头提取 payload

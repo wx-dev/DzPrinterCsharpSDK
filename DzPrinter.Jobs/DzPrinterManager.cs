@@ -60,7 +60,8 @@ public sealed class DzPrinterManager : IDisposable
         CancellationToken ct = default)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
-        if (!_lpapi.IsConnected)
+        var conn = _lpapi.Connection;
+        if (conn == null || !conn.IsConnected)
         {
             Log.Warn("【DzPrinterManager】PrintAsync() —— 未连接");
             return LpaResult.ErrorNoPrinter;
@@ -68,7 +69,6 @@ public sealed class DzPrinterManager : IDisposable
         try
         {
             var chunks = context.EncodeChunks();
-            var conn = _lpapi.Connection!;
             Log.Info($"【DzPrinterManager】PrintAsync() —— {chunks.Count} 个分片，" +
                      $"共 {chunks.Sum(c => c.Length)} 字节");
             foreach (var chunk in chunks)

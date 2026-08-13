@@ -261,11 +261,25 @@ public sealed class DeviceManager : IDisposable
     /// <summary>
     /// 获取当前唯一活跃连接（若只有一个连接）。对应 JS <c>getActiveConnection()</c>。
     /// </summary>
+    /// <remarks>
+    /// 优先返回 IsConnected=true 的连接；若没有则返回字典中唯一的连接（状态可能正在异步更新）；
+    /// 多个连接均未 IsConnected 时返回 null，由调用方自行判断。
+    /// </remarks>
     public DeviceConnection? GetActiveConnection()
     {
         lock (_syncRoot)
         {
-            return _connections.Values.FirstOrDefault(c => c.IsConnected);
+            var connected = _connections.Values.FirstOrDefault(c => c.IsConnected);
+            if (connected != null) return connected;
+            // 容错：如果字典中只有一个连接，即使 IsConnected=false 也返回（状态可能异步更新中）
+            if (_connections.Count == 1)
+            {
+                var only = _connections.Values.First();
+                Log.Warn($"【DeviceManager】GetActiveConnection() —— 唯一连接 IsConnected={only.IsConnected}, " +
+                         $"State={only.State}, 仍返回该连接（容错）。");
+                return only;
+            }
+            return null;
         }
     }
 
