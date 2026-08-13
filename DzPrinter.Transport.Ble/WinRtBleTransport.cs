@@ -165,14 +165,87 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
 
             if (bleDev == null) throw new InvalidOperationException($"无法创建 BLE 设备：{device}");
 
-            var result = await bleDev.GetGattServicesForUuidAsync(_options.ServiceUuid)
-                .AsTask(cancellationToken).ConfigureAwait(false);
-            if (result.Status != GattCommunicationStatus.Success || result.Services.Count == 0)
+            // Windows BLE 已知时序问题：FromBluetoothAddressAsync 返回后 GATT 服务可能尚未就绪。
+            // 重试 3 次，每次间隔 500ms。
+            GattDeviceService? service = null;
+            Exception? lastError = null;
+            const int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                throw new InvalidOperationException($"未找到 GATT 服务 {_options.ServiceUuid}");
+                try
+                {
+                    if (attempt > 1)
+                    {
+                        Log.Info($"【WinRtBleTransport】ConnectAsync() —— 重试 {attempt}/{maxRetries} ...");
+                        await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    var result = await bleDev.GetGattServicesForUuidAsync(_options.ServiceUuid,
+                        BluetoothCacheMode.Uncached)
+                        .AsTask(cancellationToken).ConfigureAwait(false);
+
+                    if (result.Status == GattCommunicationStatus.Success && result.Services.Count > 0)
+                    {
+                        service = result.Services[0];
+                        Log.Info($"【WinRtBleTransport】GATT 服务已就绪（第 {attempt} 次尝试）");
+                        break;
+                    }
+
+                    Log.Warn($"【WinRtBleTransport】GetGattServicesForUuidAsync 第 {attempt} 次：" +
+                             $"status={result.Status}, count={result.Services.Count}");
+                }
+                catch (Exception retryEx)
+                {
+                    lastError = retryEx;
+                    Log.Warn($"【WinRtBleTransport】GetGattServicesForUuidAsync 第 {attempt} 次异常: {retryEx.Message}");
+                }
             }
 
-            var service = result.Services[0];
+            // 如果按指定 UUID 查找失败，枚举所有服务以辅助诊断
+            if (service == null)
+            {
+                Log.Warn($"【WinRtBleTransport】未找到服务 {_options.ServiceUuid}，枚举所有 GATT 服务 ...");
+                try
+                {
+                    var allServices = await bleDev.GetGattServicesAsync(BluetoothCacheMode.Uncached)
+                        .AsTask(cancellationToken).ConfigureAwait(false);
+
+                    if (allServices.Status == GattCommunicationStatus.Success)
+                    {
+                        var svcList = string.Join(", ",
+                            allServices.Services.Select(s => s.Uuid.ToString()));
+                        Log.Info($"【WinRtBleTransport】设备实际 GATT 服务: [{svcList}]");
+
+                        // 尝试匹配常见的打印服务 UUID 作为回退
+                        var fallbackUuids = new[]
+                        {
+                            new Guid("0000FFE0-0000-1000-8000-00805F9B34FB"), // CC2541/HC-08
+                            new Guid("0000FF00-0000-1000-8000-00805F9B34FB"), // 常见模块
+                        };
+                        foreach (var fb in fallbackUuids)
+                        {
+                            var match = allServices.Services.FirstOrDefault(s => s.Uuid == fb);
+                            if (match != null)
+                            {
+                                service = match;
+                                Log.Info($"【WinRtBleTransport】回退使用服务: {fb}");
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception enumEx)
+                {
+                    Log.Warn($"【WinRtBleTransport】枚举所有服务失败: {enumEx.Message}");
+                }
+            }
+
+            if (service == null)
+            {
+                throw new InvalidOperationException(
+                    $"未找到 GATT 服务 {_options.ServiceUuid}（重试 {maxRetries} 次后仍失败）");
+            }
+
             GattCharacteristic? writeChar = null, notifyChar = null;
 
             var chars = await service.GetCharacteristicsAsync()
