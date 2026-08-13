@@ -20,7 +20,7 @@ using DzPrinter.Transport.Hid;
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "ble";
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("=== DzPrinter Windows 示例 ===");
@@ -125,7 +125,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
     IReadOnlyList<PrinterDevice> devices;
     try
     {
-        devices = await manager.DiscoverAsync();
+        devices = await manager.DiscoverAsync(label == "BLE" ? LpaDeviceType.Ble : LpaDeviceType.UsbHid);
     }
     catch (Exception ex)
     {

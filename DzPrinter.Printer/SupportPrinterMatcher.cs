@@ -34,7 +34,9 @@ public static class SupportPrinterMatcher
         "G310", "G318",
         "S6", "S8",
         "K3", "K5", "K8", "K30",
-        "DT-"
+        "DT-",
+        "DeTong"
+
     };
 
     /// <summary>
