@@ -87,7 +87,7 @@ public sealed class DrawContext : IDisposable
             PrinterWidth = (int)pi2.PrinterWidth,
         };
         _canvas = new PrinterCanvasMm(drawOpts);
-        _canvas.Base.StartJob(drawOpts);
+        _canvas.StartJob(drawOpts);
         return _canvas;
     }
 

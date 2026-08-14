@@ -362,8 +362,10 @@ public sealed partial class PrinterCanvas
     /// </summary>
     public DzImageData GetImageData()
     {
-        var w = _bitmap!.Width;
-        var h = _bitmap!.Height;
+        if (_bitmap == null)
+            throw new InvalidOperationException("画布未初始化，请先调用 StartJob。");
+        var w = _bitmap.Width;
+        var h = _bitmap.Height;
 
         // 从 SKBitmap 提取 RGBA 像素数据。
         // SkiaSharp 2.88 的 SKBitmap 没有 ReadPixels 方法，

@@ -333,6 +333,11 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         {
             int len = Math.Min(packSize, data.Length - sent);
             var slice = data.Slice(sent, len);
+
+            // 【新增】打印当前分包的十六进制数组，方便排查协议数据
+            string hexDump = BitConverter.ToString(slice.Span.ToArray()).Replace("-", " ");
+            Console.WriteLine($"[BLE TX] 偏移={sent}, 长度={len}, 数据=[{hexDump}]");
+
             using var writer = new DataWriter();
             writer.WriteBytes(slice.ToArray());
             var result = await writeChar.WriteValueAsync(writer.DetachBuffer(),

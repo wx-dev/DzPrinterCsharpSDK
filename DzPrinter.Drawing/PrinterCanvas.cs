@@ -172,9 +172,15 @@ public sealed partial class PrinterCanvas
         if (hex.Length == 3) hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
         else if (hex.Length == 4) hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}{hex[3]}{hex[3]}";
         if (hex.Length != 6 && hex.Length != 8) return SKColors.Black;
-        if (!uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var argb))
+        if (!uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
             return SKColors.Black;
-        if (hex.Length == 6) argb = (argb << 8) | 0xFFu;  // 添加不透明 alpha
+        // SkiaSharp SKColor(uint) 格式为 0xAARRGGBB（alpha 在高位）。
+        // JS/HTML 颜色字符串为 #RRGGBB 或 #RRGGBBAA（alpha 在低位），需重排。
+        uint argb;
+        if (hex.Length == 6)
+            argb = (0xFFu << 24) | rgb;                 // #RRGGBB → 0xFFRRGGBB
+        else
+            argb = ((rgb & 0xFFu) << 24) | (rgb >> 8);  // #RRGGBBAA → 0xAARRGGBB
         return new SKColor(argb);
     }
 

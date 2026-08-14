@@ -183,11 +183,11 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
     try
     {
         // 4. 创建画布并绘制内容
-        Console.WriteLine($"[{label}] 创建画布 60×40mm ...");
+        Console.WriteLine($"[{label}] 创建画布 40×30mm ...");
         using var ctx = manager.CreateDrawContext(new DrawJobOptions
         {
-            WidthMm = 60,
-            HeightMm = 40,
+            WidthMm = 40,
+            HeightMm = 30,
             Orientation = 0,
             PrinterInfo = new PrinterInfo
             {
