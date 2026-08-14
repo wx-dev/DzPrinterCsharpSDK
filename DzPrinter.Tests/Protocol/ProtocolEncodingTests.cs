@@ -378,7 +378,7 @@ public class PrintEncoderDirectTests
     }
 
     [Fact]
-    public void EncodeImageData_DarknessAndSpeedFramesPresent_WhenSetTo255()
+    public void EncodeImageData_DarknessAndSpeedFramesAbsent_WhenSetTo255()
     {
         var img = CreateBlankImage(48, 32);
         var opts = new PrintImageOptions
@@ -387,28 +387,58 @@ public class PrintEncoderDirectTests
             PrinterDpi = 203,
             PrinterWidth = 384,
             Orientation = 0,
-            PrintDarkness = 255, // Unset → 发送 darkness-1 = 254
-            PrintSpeed = 255,    // Unset → 发送 speed-1 = 254
+            PrintDarkness = 255, // Unset → should NOT send
+            PrintSpeed = 255,    // Unset → should NOT send
+        };
+
+        var chunks = PrintEncoder.EncodeImageData(img, opts);
+        var allBytes = new List<byte>();
+        foreach (var chunk in chunks) allBytes.AddRange(chunk);
+
+        var hasDarkness = false;
+        var hasSpeed = false;
+        for (var i = 0; i < allBytes.Count - 1; i++)
+        {
+            if (allBytes[i] == 0x1F && allBytes[i + 1] == (byte)PrinterCommand.CMD_DARKNESS)
+                hasDarkness = true;
+            if (allBytes[i] == 0x1F && allBytes[i + 1] == (byte)PrinterCommand.CMD_SPEED)
+                hasSpeed = true;
+        }
+        hasDarkness.Should().BeFalse("darkness=255 means Unset, should not send CMD_DARKNESS");
+        hasSpeed.Should().BeFalse("speed=255 means Unset, should not send CMD_SPEED");
+    }
+
+    [Fact]
+    public void EncodeImageData_DarknessAndSpeedFramesPresent_WhenSetToValidValues()
+    {
+        var img = CreateBlankImage(48, 32);
+        var opts = new PrintImageOptions
+        {
+            ImageData = img,
+            PrinterDpi = 203,
+            PrinterWidth = 384,
+            Orientation = 0,
+            PrintDarkness = 6,  // Normal → sends 6-1 = 5
+            PrintSpeed = 3,     // Normal → sends 3-1 = 2
         };
 
         var chunks = PrintEncoder.EncodeImageData(img, opts);
         var first = chunks[0];
 
-        // 在 CMD_PAGE_WIDTH 帧之后查找 CMD_DARKNESS(0x43) 和 CMD_SPEED(0x44)
         // CMD_PAGE_START: 6 bytes [0..5]
-        // CMD_PAGE_WIDTH: 5 bytes [6..10]  (0x1F 0x27 0x01 0x06 0x88)
-        // CMD_DARKNESS:   5 bytes [11..15] (0x1F 0x43 0x01 0xFE 0x88)
+        // CMD_PAGE_WIDTH: 5 bytes [6..10]
+        // CMD_DARKNESS:   5 bytes [11..15] (0x1F 0x43 0x01 0x05 0x88)
         first[11].Should().Be(0x1F);
-        first[12].Should().Be((byte)PrinterCommand.CMD_DARKNESS); // 0x43
+        first[12].Should().Be((byte)PrinterCommand.CMD_DARKNESS);
         first[13].Should().Be(0x01);
-        first[14].Should().Be(0xFE, "darkness-1 = 254 = 0xFE");
+        first[14].Should().Be(0x05, "darkness-1 = 5");
         first[15].Should().Be(0x88);
 
-        // CMD_SPEED: 5 bytes [16..20] (0x1F 0x44 0x01 0xFE 0x88)
+        // CMD_SPEED: 5 bytes [16..20] (0x1F 0x44 0x01 0x02 0x88)
         first[16].Should().Be(0x1F);
-        first[17].Should().Be((byte)PrinterCommand.CMD_SPEED); // 0x44
+        first[17].Should().Be((byte)PrinterCommand.CMD_SPEED);
         first[18].Should().Be(0x01);
-        first[19].Should().Be(0xFE, "speed-1 = 254 = 0xFE");
+        first[19].Should().Be(0x02, "speed-1 = 2");
         first[20].Should().Be(0x88);
     }
 

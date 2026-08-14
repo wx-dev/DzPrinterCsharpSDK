@@ -20,7 +20,7 @@ using DzPrinter.Transport.Hid;
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "ble";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "hid";
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("=== DzPrinter Windows 示例 ===");
@@ -213,7 +213,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
         {
             Text = "--------------------",
             X = 5,
-            Y = 10,
+            Y = 5,
             FontHeight = 3,
         });
 
@@ -222,21 +222,21 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
         {
             Text = $"Date: {DateTime.Now:yyyy-MM-dd}",
             X = 5,
-            Y = 16,
+            Y = 7,
             FontHeight = 3,
         });
         ctx.Canvas.DrawText(new DrawOptions
         {
             Text = $"Transport: {label}",
             X = 5,
-            Y = 22,
+            Y = 10,
             FontHeight = 3,
         });
         ctx.Canvas.DrawText(new DrawOptions
         {
             Text = "Hello World!",
             X = 5,
-            Y = 28,
+            Y = 13,
             FontHeight = 4,
             TextAlignment = Alignment.Start,
         });

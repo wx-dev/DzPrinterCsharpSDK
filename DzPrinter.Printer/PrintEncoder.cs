@@ -267,12 +267,12 @@ public sealed class PrintEncoder
             s.PushPackage(PrinterCommand.CMD_GAP_LEN, EbvHelper.FromEbv(gapMm));
         }
 
-        // CMD_DARKNESS（1 起算，发送 darkness-1）
-        if (options.PrintDarkness >= 1 && options.PrintDarkness <= 255)
+        // CMD_DARKNESS（1 起算，发送 darkness-1；255=Unset 跳过）
+        if (options.PrintDarkness >= 1 && options.PrintDarkness < 255)
             s.PushPackage(PrinterCommand.CMD_DARKNESS, new byte[] { (byte)(options.PrintDarkness - 1) });
 
-        // CMD_SPEED（1 起算，发送 speed-1）
-        if (options.PrintSpeed >= 1 && options.PrintSpeed <= 255)
+        // CMD_SPEED（1 起算，发送 speed-1；255=Unset 跳过）
+        if (options.PrintSpeed >= 1 && options.PrintSpeed < 255)
             s.PushPackage(PrinterCommand.CMD_SPEED, new byte[] { (byte)(options.PrintSpeed - 1) });
 
         _bufferList.Push(s.GetAllBytes());
@@ -434,7 +434,7 @@ public sealed class PrintEncoder
                 break;
         }
 
-        _lineData = row;
+        _lineData = (byte[])row.Clone();
         _lineBytes = effLen;
         _lineCount = 1;
         _lineAction = LineActionPrint;
@@ -580,7 +580,7 @@ public sealed class PrintEncoder
         // 行数 > 1 时发送重复指令
         if (_lineCount > 1) PushRepeat(_lineCount - 1);
 
-        _prevData = _lineData;
+        _prevData = (byte[])_lineData.Clone();
         _prevBytes = _lineBytes;
     }
 
