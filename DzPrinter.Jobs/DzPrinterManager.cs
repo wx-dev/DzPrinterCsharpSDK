@@ -69,12 +69,19 @@ public sealed class DzPrinterManager : IDisposable
         try
         {
             var chunks = context.EncodeChunks();
+            var totalBytes = chunks.Sum(c => c.Length);
             Log.Info($"【DzPrinterManager】PrintAsync() —— {chunks.Count} 个分片，" +
-                     $"共 {chunks.Sum(c => c.Length)} 字节");
+                     $"共 {totalBytes} 字节");
+
+            // 合并为连续字节流发送，避免传输层在每个分片末尾填充零字节
+            var allData = new byte[totalBytes];
+            var offset = 0;
             foreach (var chunk in chunks)
             {
-                await conn.SendAsync(chunk, ct).ConfigureAwait(false);
+                chunk.CopyTo(allData.AsMemory(offset));
+                offset += chunk.Length;
             }
+            await conn.SendAsync(allData, ct).ConfigureAwait(false);
             return LpaResult.Ok;
         }
         catch (Exception ex)

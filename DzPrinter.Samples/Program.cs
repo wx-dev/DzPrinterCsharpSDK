@@ -20,7 +20,7 @@ using DzPrinter.Transport.Hid;
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "hid";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "ble";
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("=== DzPrinter Windows 示例 ===");

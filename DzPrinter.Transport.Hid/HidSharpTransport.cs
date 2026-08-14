@@ -11,6 +11,7 @@
 
 using DzPrinter.Core;
 using HidSharp;
+using HidSharp.Reports;
 
 namespace DzPrinter.Transport.Hid;
 
@@ -29,6 +30,8 @@ public sealed class HidTransportOptions
     public int ReadTimeoutMs { get; set; } = 500;
     /// <summary>写超时毫秒。</summary>
     public int WriteTimeoutMs { get; set; } = 2000;
+    /// <summary>HID 报告发送间隔毫秒。默认 20ms。</summary>
+    public int SendIntervalMs { get; set; } = 20;
 }
 
 /// <summary>
@@ -43,6 +46,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
     private readonly object _sync = new();
     private HidDevice? _hidDevice;
     private HidStream? _hidStream;
+    private byte _detectedReportId;
     private Thread? _readThread;
     private CancellationTokenSource? _readCts;
     private Transport.ConnectionState _state = Transport.ConnectionState.Disconnected;
@@ -86,6 +90,11 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                     StringComparison.OrdinalIgnoreCase))) match = false;
             if (!match) continue;
 
+            int maxOut = 0;
+            try { maxOut = d.GetMaxOutputReportLength(); } catch { }
+            Log.Info($"【HidSharpTransport】Found: VID={d.VendorID:X4} PID={d.ProductID:X4} " +
+                     $"MaxOutput={maxOut} Name={name}");
+
             list.Add(new Transport.DeviceInfo
             {
                 DeviceId = d.DevicePath,
@@ -117,6 +126,32 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
 
             stream.ReadTimeout = _options.ReadTimeoutMs;
             stream.WriteTimeout = _options.WriteTimeoutMs;
+
+            // 检测设备输出报告 ID 和属性
+            _detectedReportId = _options.ReportId;
+            int maxOut = 0, maxIn = 0;
+            try { maxOut = hid.GetMaxOutputReportLength(); } catch { }
+            try { maxIn = hid.GetMaxInputReportLength(); } catch { }
+            Log.Info($"【HidSharpTransport】Device: VID={hid.VendorID:X4} PID={hid.ProductID:X4} " +
+                     $"MaxOutput={maxOut} MaxInput={maxIn} Name={SafeGetName(hid)}");
+
+            try
+            {
+                var rawDesc = hid.GetRawReportDescriptor();
+                var desc = new ReportDescriptor(rawDesc);
+                var outputIds = ParseOutputReportIds(rawDesc);
+                Log.Info($"【HidSharpTransport】ReportsUseID={desc.ReportsUseID}, OutputReportIDs=[{string.Join(", ", outputIds)}]");
+
+                if (outputIds.Count > 0)
+                {
+                    _detectedReportId = outputIds[0];
+                    Log.Info($"【HidSharpTransport】Using output Report ID = {_detectedReportId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"【HidSharpTransport】Failed to parse report descriptor: {ex.Message}, using Report ID = {_detectedReportId}");
+            }
 
             lock (_sync)
             {
@@ -165,7 +200,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         return Task.CompletedTask;
     }
 
-    public Task SendAsync(ReadOnlyMemory<byte> data,
+    public async Task SendAsync(ReadOnlyMemory<byte> data,
         CancellationToken cancellationToken = default)
     {
         HidStream? stream;
@@ -173,25 +208,60 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         lock (_sync)
         {
             stream = _hidStream;
-            max = _hidDevice?.GetMaxOutputReportLength() ?? 64;
+            max = _hidDevice?.GetMaxOutputReportLength() ?? 0;
         }
         if (stream == null) throw new InvalidOperationException("未连接，无法发送");
 
-        // max = ReportId(1) + payload(max-1)
-        int payloadMax = Math.Max(1, max - 1);
-        byte reportId = _options.ReportId;
+        if (max <= 0) max = 64;
+
+        int payloadMax = Math.Max(1, max - 1); // Exclude Report ID
+        byte reportId = _detectedReportId;
+        int interval = _options.SendIntervalMs;
+
+        // USB 传输层使用 0x1E 作为包头：0x1E <EBV dataLen> [data...]
+        // 参考 dz-print 项目的 protocol.md 与 packager.rs
+        //
+        // 关键发现：HID Report ID 会被 Windows HID 驱动原样发送给设备（含在 USB 传输中）。
+        // 该设备的 Output Report ID = 30 (0x1E)，恰好等于 USB 传输包头。
+        // 因此 Report ID 本身就是 0x1E 包头，无需再额外添加一个 0x1E 字节。
+        // 设备收到的 64 字节 = [0x1E(ReportID=包头)] [EBV(62)] [62字节命令数据]
+        // 与 dz-print 的 raw USB 格式完全一致。
+
+        // maxData = payloadMax - 1(EBV) = 62, 对应 dz-print 的 max_out_size
+        int maxData = payloadMax - 1;
+        byte[] fixedEbv = maxData < 192
+            ? new byte[] { (byte)maxData }
+            : new byte[] { (byte)((maxData >> 8) | 0xC0), (byte)(maxData & 0xFF) };
 
         int sent = 0;
+        int frameNum = 0;
         while (sent < data.Length)
         {
-            int len = Math.Min(payloadMax, data.Length - sent);
-            var frame = new byte[1 + len];
-            frame[0] = reportId;
-            data.Slice(sent, len).CopyTo(frame.AsMemory(1, len));
+            int len = Math.Min(maxData, data.Length - sent);
+
+            var frame = new byte[max];
+            int pos = 0;
+            frame[pos++] = reportId; // 0x1E = USB 传输包头
+            foreach (var b in fixedEbv) frame[pos++] = b;
+            data.Slice(sent, len).CopyTo(frame.AsMemory(pos, len));
+            // 剩余字节为 0（new byte[] 默认零填充），构成固定长度包
+
+            if (frameNum < 5)
+            {
+                var hex = string.Join(" ", frame.Take(Math.Min(24, pos + len)).Select(b => b.ToString("X2")));
+                Log.Info($"【HID TX】frame={frameNum} reportId={reportId} max={max} dataLen={len} " +
+                         $"fixedLen={maxData} [{hex}...]");
+            }
+
             stream.Write(frame, 0, frame.Length);
             sent += len;
+            frameNum++;
+
+            if (sent < data.Length && interval > 0)
+                await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
         }
-        return Task.CompletedTask;
+
+        Log.Info($"【HID TX】发送完成: {frameNum} 帧, {data.Length} 字节");
     }
 
     public Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
@@ -239,24 +309,131 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                 catch (IOException) { break; }
                 catch (ObjectDisposedException) { break; }
                 if (n <= 0) continue;
+
                 // 去掉 Report ID (首字节)
-                byte[] payload;
-                if (n > 1 && buf[0] == _options.ReportId)
+                int start = (n > 1 && buf[0] == _detectedReportId) ? 1 : 0;
+
+                // 解包 USB 传输层 0x1E 头
+                var payload = UnwrapUsbTransport(buf, start, n - start);
+                if (payload.Length > 0)
                 {
-                    payload = buf.AsSpan(1, n - 1).ToArray();
+                    lock (_readBuffer) _readBuffer.AddRange(payload);
+                    DataReceived?.Invoke(this, new Transport.DataReceivedEventArgs(payload));
                 }
-                else
-                {
-                    payload = buf.AsSpan(0, n).ToArray();
-                }
-                lock (_readBuffer) _readBuffer.AddRange(payload);
-                DataReceived?.Invoke(this, new Transport.DataReceivedEventArgs(payload));
             }
         }
         catch (Exception ex)
         {
             Log.Warn($"【HidSharpTransport】ReadLoop exited: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 解包 USB 传输层响应数据。
+    /// 格式1（独立包头）：[0x1E] [EBV] [data...] → 剥离 0x1E + EBV
+    /// 格式2（ReportID=包头，已剥离）：[EBV] [data...] → 剥离 EBV
+    /// 格式3（原始数据）：[data...] → 原样返回
+    /// 通过检查 EBV 后的首字节是否为有效命令起始（0x1F/0x1B/0x0C）来区分格式2和3。
+    /// </summary>
+    private static byte[] UnwrapUsbTransport(byte[] buf, int start, int length)
+    {
+        if (length < 1) return Array.Empty<byte>();
+
+        int pos = start;
+
+        // 格式1：以 0x1E 开头（独立包头）
+        if (buf[pos] == 0x1E && length >= 2)
+        {
+            pos++;
+            return ParseEbvAndExtract(buf, pos, start + length - pos)
+                   ?? buf.AsSpan(start, length).ToArray();
+        }
+
+        // 格式2/3：尝试解析 EBV，检查 EBV 后的首字节是否为有效命令
+        var extracted = ParseEbvAndExtract(buf, pos, length);
+        if (extracted != null && extracted.Length > 0)
+        {
+            byte firstByte = extracted[0];
+            // 有效命令起始字节：0x1F(协议帧), 0x1B(ESC), 0x0C(页结束)
+            if (firstByte == 0x1F || firstByte == 0x1B || firstByte == 0x0C)
+                return extracted;
+        }
+
+        // 格式3：原始数据，原样返回
+        return buf.AsSpan(start, length).ToArray();
+    }
+
+    /// <summary>
+    /// 从 pos 位置解析 EBV 长度，提取对应的数据。
+    /// </summary>
+    private static byte[]? ParseEbvAndExtract(byte[] buf, int pos, int available)
+    {
+        if (available < 1) return null;
+
+        int dataLen;
+        int ebvBytes;
+        if (buf[pos] >= 192 && pos + 1 < pos + available)
+        {
+            dataLen = ((buf[pos] & 0x3F) << 8) | buf[pos + 1];
+            ebvBytes = 2;
+        }
+        else
+        {
+            dataLen = buf[pos];
+            ebvBytes = 1;
+        }
+
+        int dataStart = pos + ebvBytes;
+        int remaining = pos + available - dataStart;
+        int actualLen = Math.Min(dataLen, remaining);
+        if (actualLen <= 0) return null;
+
+        return buf.AsSpan(dataStart, actualLen).ToArray();
+    }
+
+    /// <summary>
+    /// 解析 HID 报告描述符，提取所有 Output 报告对应的 Report ID。
+    /// HID 描述符格式：每项 = [prefix(byte)] [data(0-4 bytes)]
+    /// prefix = [tag(4bit)][type(2bit)][size(2bit)]；size=3 表示 4 字节。
+    /// Global item tag=8 → Report ID；Main item tag=9 → Output report。
+    /// </summary>
+    private static List<byte> ParseOutputReportIds(byte[] descriptor)
+    {
+        var ids = new List<byte>();
+        byte currentReportId = 0;
+
+        int i = 0;
+        while (i < descriptor.Length)
+        {
+            byte prefix = descriptor[i];
+            if (prefix == 0) // long item: next byte is data size
+            {
+                if (i + 1 >= descriptor.Length) break;
+                i += 2 + descriptor[i + 1];
+                continue;
+            }
+
+            int size = prefix & 0x03;
+            if (size == 3) size = 4;
+            int type = (prefix >> 2) & 0x03;
+            int tag = (prefix >> 4) & 0x0F;
+
+            if (type == 1 && tag == 8 && size >= 1 && i + 1 < descriptor.Length)
+            {
+                // Global: Report ID
+                currentReportId = descriptor[i + 1];
+            }
+            else if (type == 0 && tag == 9)
+            {
+                // Main: Output report
+                if (!ids.Contains(currentReportId))
+                    ids.Add(currentReportId);
+            }
+
+            i += 1 + size;
+        }
+
+        return ids;
     }
 
     private static string? SafeGetName(HidDevice d)
