@@ -218,14 +218,8 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         byte reportId = _detectedReportId;
         int interval = _options.SendIntervalMs;
 
-        // USB 传输层使用 0x1E 作为包头：0x1E <EBV dataLen> [data...]
-        // 参考 dz-print 项目的 protocol.md 与 packager.rs
-        //
-        // 关键发现：HID Report ID 会被 Windows HID 驱动原样发送给设备（含在 USB 传输中）。
-        // 该设备的 Output Report ID = 30 (0x1E)，恰好等于 USB 传输包头。
-        // 因此 Report ID 本身就是 0x1E 包头，无需再额外添加一个 0x1E 字节。
-        // 设备收到的 64 字节 = [0x1E(ReportID=包头)] [EBV(62)] [62字节命令数据]
-        // 与 dz-print 的 raw USB 格式完全一致。
+        // USB 传输层数据包格式：<ReportID> <EBV dataLen> [data...]
+        // 例如设备收到的 64 字节 = [0x1E(ReportID=包头)] [EBV(62)] [62字节命令数据]
 
         // maxData = payloadMax - 1(EBV) = 62, 对应 dz-print 的 max_out_size
         int maxData = payloadMax - 1;
@@ -241,7 +235,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
 
             var frame = new byte[max];
             int pos = 0;
-            frame[pos++] = reportId; // 0x1E = USB 传输包头
+            frame[pos++] = reportId; // USB 传输包头
             foreach (var b in fixedEbv) frame[pos++] = b;
             data.Slice(sent, len).CopyTo(frame.AsMemory(pos, len));
             // 剩余字节为 0（new byte[] 默认零填充），构成固定长度包
@@ -313,7 +307,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                 // 去掉 Report ID (首字节)
                 int start = (n > 1 && buf[0] == _detectedReportId) ? 1 : 0;
 
-                // 解包 USB 传输层 0x1E 头
+                // 解包 USB 传输层
                 var payload = UnwrapUsbTransport(buf, start, n - start);
                 if (payload.Length > 0)
                 {
@@ -330,10 +324,9 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
 
     /// <summary>
     /// 解包 USB 传输层响应数据。
-    /// 格式1（独立包头）：[0x1E] [EBV] [data...] → 剥离 0x1E + EBV
-    /// 格式2（ReportID=包头，已剥离）：[EBV] [data...] → 剥离 EBV
-    /// 格式3（原始数据）：[data...] → 原样返回
-    /// 通过检查 EBV 后的首字节是否为有效命令起始（0x1F/0x1B/0x0C）来区分格式2和3。
+    /// 格式1（ReportID=包头，已剥离）：[EBV] [data...] → 剥离 EBV
+    /// 格式2（原始数据）：[data...] → 原样返回
+    /// 通过检查 EBV 后的首字节是否为有效命令起始（0x1F/0x1B/0x0C）来区分格式1和2。
     /// </summary>
     private static byte[] UnwrapUsbTransport(byte[] buf, int start, int length)
     {
@@ -341,15 +334,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
 
         int pos = start;
 
-        // 格式1：以 0x1E 开头（独立包头）
-        if (buf[pos] == 0x1E && length >= 2)
-        {
-            pos++;
-            return ParseEbvAndExtract(buf, pos, start + length - pos)
-                   ?? buf.AsSpan(start, length).ToArray();
-        }
-
-        // 格式2/3：尝试解析 EBV，检查 EBV 后的首字节是否为有效命令
+        // 格式1/2：尝试解析 EBV，检查 EBV 后的首字节是否为有效命令
         var extracted = ParseEbvAndExtract(buf, pos, length);
         if (extracted != null && extracted.Length > 0)
         {
@@ -359,7 +344,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                 return extracted;
         }
 
-        // 格式3：原始数据，原样返回
+        // 格式2：原始数据，原样返回
         return buf.AsSpan(start, length).ToArray();
     }
 
