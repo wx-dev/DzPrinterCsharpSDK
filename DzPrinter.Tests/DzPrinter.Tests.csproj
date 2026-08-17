@@ -21,16 +21,19 @@
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="FluentAssertions" />
+    <Using Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport.File\DzPrinter.Transport.File.csproj" />
     <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
     <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
     <ProjectReference Include="..\DzPrinter.Printer\DzPrinter.Printer.csproj" />

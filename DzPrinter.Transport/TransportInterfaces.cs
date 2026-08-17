@@ -101,6 +101,8 @@ public enum TransportType
     BluetoothClassic = 3,
     /// <summary>TCP/IP 网络打印。</summary>
     TcpIp = 4,
+    /// <summary>文件输出虚拟传输（用于调试/测试，将打印数据写入文件）。</summary>
+    File = 98,
     /// <summary>模拟/测试传输。</summary>
     Mock = 99,
 }

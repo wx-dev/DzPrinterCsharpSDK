@@ -1,13 +1,15 @@
 // =====================================================================
-//  DzPrinter Windows 示例：BLE + HID 打印。
+//  DzPrinter Windows 示例：BLE + HID + File 打印。
 //
 //  本示例演示如何通过 DzPrinterManager + 传输层实现完整的
 //  "发现设备 → 连接 → 绘制 → 打印 → 断开" 流程。
 //
 //  用法：
-//    dotnet run --project DzPrinter.Samples -- ble     # BLE 打印
-//    dotnet run --project DzPrinter.Samples -- hid     # HID 打印
-//    dotnet run --project DzPrinter.Samples -- list    # 仅列出设备
+//    dotnet run --project DzPrinter.Samples -- ble        # BLE 打印
+//    dotnet run --project DzPrinter.Samples -- hid        # HID 打印
+//    dotnet run --project DzPrinter.Samples -- file       # File 输出 (二进制 + PNG 预览)
+//    dotnet run --project DzPrinter.Samples -- file-hex   # File 输出 (十六进制文本 + PNG 预览)
+//    dotnet run --project DzPrinter.Samples -- list       # 仅列出设备
 // =====================================================================
 
 using DzPrinter.Drawing;
@@ -15,12 +17,13 @@ using DzPrinter.Jobs;
 using DzPrinter.Printer;
 using DzPrinter.Transport;
 using DzPrinter.Transport.Ble;
+using DzPrinter.Transport.File;
 using DzPrinter.Transport.Hid;
 
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "ble";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "file";
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("=== DzPrinter Windows 示例 ===");
@@ -35,11 +38,17 @@ switch (mode)
     case "hid":
         await RunHidSampleAsync();
         break;
+    case "file":
+        await RunFileSampleAsync(FileOutputFormat.RawBinary);
+        break;
+    case "file-hex":
+        await RunFileSampleAsync(FileOutputFormat.HexText);
+        break;
     case "list":
         await ListDevicesAsync();
         break;
     default:
-        Console.WriteLine("用法: dotnet run -- [ble|hid|list]");
+        Console.WriteLine("用法: dotnet run -- [ble|hid|file|file-hex|list]");
         break;
 }
 
@@ -75,6 +84,256 @@ static async Task RunHidSampleAsync()
     });
 
     await PrintWithTransportAsync(transport, "HID");
+}
+
+// =====================================================================
+//  File（文件输出）打印示例
+//
+//  将打印数据写入本地文件（二进制或十六进制文本），并自动解码生成 PNG 预览。
+//  无需真实打印机即可验证绘制与编码结果。
+// =====================================================================
+static async Task RunFileSampleAsync(FileOutputFormat format)
+{
+    var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+    var ext = format == FileOutputFormat.RawBinary ? "bin" : "hex";
+    var outDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+        "DzPrinter_Output");
+    Directory.CreateDirectory(outDir);
+
+    var baseName = $"label_{stamp}";
+    var outputPath = Path.Combine(outDir, $"{baseName}.{ext}");
+    var pngPath = Path.Combine(outDir, $"{baseName}.png");
+
+    Console.WriteLine($"[FILE] 创建 FileTransport ({format}) ...");
+    Console.WriteLine($"[FILE]   数据文件: {outputPath}");
+    Console.WriteLine($"[FILE]   PNG 预览: {pngPath}");
+
+    using var transport = new FileTransport(new FileTransportOptions
+    {
+        OutputPath = outputPath,
+        Format = format,
+        Append = false,
+        SavePngPreview = true,
+        PngOutputPath = pngPath,
+        PngBackground = 1, // 白底黑字
+        PngScale = 2,      // 放大 2 倍便于查看
+    });
+
+    // 不通过 PrintWithTransportAsync 的"发现设备→选择→连接"流程（File 是虚拟设备）
+    // 直接走通用流程即可；传入 "File" label，通用方法会自动处理 LpaDeviceType.File。
+    await PrintWithFileTransportAsync(transport, "File", outputPath, pngPath);
+}
+
+/// <summary>
+/// File 传输专用流程：跳过真实设备的发现/选择，直接构造虚拟设备并连接。
+/// </summary>
+static async Task PrintWithFileTransportAsync(
+    IDeviceTransport transport,
+    string label,
+    string rawOutputPath,
+    string pngOutputPath)
+{
+    using var manager = new DzPrinterManager(transport);
+
+    // 1. 发现（FileTransport 返回一台虚拟 D60-File 打印机）
+    Console.WriteLine($"[{label}] 枚举虚拟设备 ...");
+    IReadOnlyList<PrinterDevice> devices;
+    try
+    {
+        devices = await manager.DiscoverAsync(LpaDeviceType.File);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[{label}] 发现失败: {ex.Message}");
+        return;
+    }
+
+    if (devices.Count == 0)
+    {
+        Console.WriteLine($"[{label}] 未发现虚拟设备（未预期）。");
+        return;
+    }
+
+    var device = devices[0];
+    Console.WriteLine($"[{label}] 虚拟设备: {device.Name}  (ID: {device.DeviceId})");
+
+    // 2. 连接（打开文件流）
+    Console.WriteLine($"[{label}] 打开输出文件 ...");
+    try
+    {
+        var connectResult = await manager.ConnectAsync(device);
+        if (connectResult != LpaResult.Ok)
+        {
+            Console.WriteLine($"[{label}] 连接失败: {connectResult}");
+            return;
+        }
+        if (!manager.IsConnected)
+        {
+            Console.WriteLine($"[{label}] 连接失败: 状态未就绪");
+            return;
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[{label}] 连接异常: {ex.Message}");
+        return;
+    }
+    Console.WriteLine($"[{label}] 连接就绪。");
+
+    try
+    {
+        // 3. 创建画布并绘制（48×48mm 正方形布局）
+        Console.WriteLine($"[{label}] 创建画布 48×48mm ...");
+        using var ctx = manager.CreateDrawContext(new DrawJobOptions
+        {
+            WidthMm = 48,
+            HeightMm = 48,
+            Orientation = 0,
+            PrinterInfo = new PrinterInfo
+            {
+                PrinterDpi = 203,
+                PrinterWidth = 384,
+                PageCount = 1,
+            },
+        });
+        ctx.Start();
+
+        // ---- 标题 ----
+        ctx.Canvas.DrawText(new DrawOptions
+        {
+            Text = "DZPrinter SDK",
+            X = 3,
+            Y = 3,
+            FontHeight = 5,
+            TextAlignment = Alignment.Start,
+            FontStyle = FontStyle.Bold,
+        });
+
+        // ---- 分隔线（纯线） ----
+        ctx.Canvas.DrawLine(new DrawOptions
+        {
+            X1 = 3,
+            Y1 = 9,
+            X2 = 45, // 宽度 48 - 边距 3 = 45
+            Y2 = 9,
+            LineWidth = 1,
+        });
+
+        // ---- 文本信息 ----
+        ctx.Canvas.DrawText(new DrawOptions
+        {
+            Text = $"Date : {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+            X = 3,
+            Y = 11,
+            FontHeight = 3,
+        });
+        ctx.Canvas.DrawText(new DrawOptions
+        {
+            Text = $"Mode : {label} (FileTransport)",
+            X = 3,
+            Y = 14,
+            FontHeight = 3,
+        });
+        ctx.Canvas.DrawText(new DrawOptions
+        {
+            Text = "Output: 48 x 48 mm",
+            X = 3,
+            Y = 17,
+            FontHeight = 3,
+        });
+
+        // ---- 填充矩形（实心） ----
+        ctx.Canvas.DrawRect(new DrawOptions
+        {
+            X = 3,
+            Y = 22,
+            Width = 12,
+            Height = 12,
+            LineWidth = 1,
+            Fill = true,
+        });
+
+        // ---- 空心矩形 ----
+        ctx.Canvas.DrawRect(new DrawOptions
+        {
+            X = 18,
+            Y = 22,
+            Width = 12,
+            Height = 12,
+            LineWidth = 1,
+            Fill = false,
+        });
+
+        // ---- 矩形右侧的二维码占位（用多行小点模拟，便于看位置） ----
+        ctx.Canvas.DrawRect(new DrawOptions
+        {
+            X = 34,
+            Y = 22,
+            Width = 11,
+            Height = 11,
+            Fill = true,
+        });
+        ctx.Canvas.DrawRect(new DrawOptions
+        {
+            X = 34,
+            Y = 34,
+            Width = 11,
+            Height = 4,
+            Fill = false,
+            LineWidth = 1,
+        });
+
+        // ---- 底部脚注 ----
+        ctx.Canvas.DrawLine(new DrawOptions
+        {
+            X1 = 3,
+            Y1 = 43,
+            X2 = 45,
+            Y2 = 43,
+            LineWidth = 1,
+        });
+        ctx.Canvas.DrawText(new DrawOptions
+        {
+            Text = "Virtual File Print Preview",
+            X = 3,
+            Y = 44,
+            FontHeight = 2.5,
+            TextAlignment = Alignment.Start,
+        });
+
+        // 4. 打印（写入文件）
+        Console.WriteLine($"[{label}] 正在写入打印数据 ...");
+        var result = await manager.PrintAsync(ctx);
+        Console.WriteLine($"[{label}] 写入结果: {result}");
+
+        if (result == LpaResult.Ok)
+        {
+            Console.WriteLine($"[{label}] ✓ 数据已写入: {rawOutputPath}");
+        }
+        else
+        {
+            Console.WriteLine($"[{label}] ✗ 写入失败: {result}");
+        }
+    }
+    finally
+    {
+        // 5. 断开（关闭文件流 + 生成 PNG 预览）
+        Console.WriteLine($"[{label}] 关闭输出文件（生成 PNG 预览） ...");
+        await manager.DisconnectAsync();
+        Console.WriteLine($"[{label}] ✓ 已断开。");
+
+        if (File.Exists(rawOutputPath))
+        {
+            var info = new FileInfo(rawOutputPath);
+            Console.WriteLine($"[{label}] RAW : {rawOutputPath}  ({info.Length} bytes)");
+        }
+        if (File.Exists(pngOutputPath))
+        {
+            var info = new FileInfo(pngOutputPath);
+            Console.WriteLine($"[{label}] PNG : {pngOutputPath}  ({info.Length} bytes)");
+        }
+    }
 }
 
 // =====================================================================

@@ -18,6 +18,7 @@
   - [5. 图像绘制与处理](#5-图像绘制与处理)
   - [6. 设备管理（多设备）](#6-设备管理多设备)
   - [7. 打印机配置与验证](#7-打印机配置与验证)
+  - [8. 文件输出与 PNG 预览](#8-文件输出与-png-预览)
 - [枚举速查](#枚举速查)
 - [依赖项](#依赖项)
 - [许可证](#许可证)
@@ -26,7 +27,8 @@
 
 ## 功能特性
 
-- **多种连接方式**：支持 BLE 低功耗蓝牙（`WinRtBleTransport`）和 HID USB（`HidSharpTransport`）两种传输层
+- **多种连接方式**：支持 BLE 低功耗蓝牙（`WinRtBleTransport`）、HID USB（`HidSharpTransport`）和文件输出（`FileTransport`）三种传输层
+- **文件输出虚拟打印**：无需真实打印机即可将打印数据写入文件（二进制/十六进制文本），并自动解码协议字节流生成 PNG 预览图，便于调试与脱机分析
 - **丰富的绘图能力**：文本、直线、矩形、圆角矩形、椭圆、圆、1D/2D 条码、图像
 - **1D 条码支持**：Code128、EAN-13、EAN-8、UPC-A、UPC-E、Code39、ITF25、Codabar、Code93、ISBN、GS1-128 等
 - **2D 条码支持**：QR Code、PDF417、DataMatrix、GridMatrix
@@ -46,6 +48,7 @@ DzPrinterCsharpSDK/
 ├── DzPrinter.Transport/       # 传输层接口定义
 ├── DzPrinter.Transport.Ble/  # Windows BLE 实现（基于 WinRT）
 ├── DzPrinter.Transport.Hid/  # Windows HID 实现（基于 HidSharp）
+├── DzPrinter.Transport.File/ # 文件输出虚拟传输层（调试/测试/PNG 预览）
 ├── DzPrinter.Barcode/        # 1D/2D 条码编码引擎
 ├── DzPrinter.Drawing/        # 画布绘制（文本/图形/条码/图像）
 ├── DzPrinter.Imaging/        # 图像处理（二值化、半色调、反色等）
@@ -67,6 +70,8 @@ cd MyPrinterApp
 dotnet add reference ../DzPrinter.Jobs/DzPrinter.Jobs.csproj
 dotnet add reference ../DzPrinter.Transport.Ble/DzPrinter.Transport.Ble.csproj
 dotnet add reference ../DzPrinter.Transport.Hid/DzPrinter.Transport.Hid.csproj
+# 如需文件输出虚拟打印（调试/测试）：
+dotnet add reference ../DzPrinter.Transport.File/DzPrinter.Transport.File.csproj
 ```
 
 ### 2. 最简单的打印流程
@@ -82,7 +87,7 @@ using DzPrinter.Transport.Ble;
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
 // 创建 BLE 传输层
-using var transport = new WinRtBleTransport(new BleConnectionOptions
+using var transport = new WinRtBleTransport(new BleTransportOptions
 {
     ServiceUuid = new Guid("000018F0-0000-1000-8000-00805F9B34FB"),
     PackSize = 20,
@@ -102,8 +107,8 @@ await manager.ConnectAsync(devices[0]);
 // 3) 绘制标签
 using var ctx = manager.CreateDrawContext(new DrawJobOptions
 {
-    WidthMm = 60,
-    HeightMm = 40,
+    WidthMm = 48,
+    HeightMm = 48,
     Orientation = 0,
     PrinterInfo = new PrinterInfo
     {
@@ -141,7 +146,17 @@ dotnet run --project DzPrinter.Samples -- ble
 
 # HID 打印
 dotnet run --project DzPrinter.Samples -- hid
+
+# 文件输出（二进制 + PNG 预览），无需真实打印机
+dotnet run --project DzPrinter.Samples -- file
+
+# 文件输出（十六进制文本 + PNG 预览）
+dotnet run --project DzPrinter.Samples -- file-hex
 ```
+
+文件输出模式会将打印数据写入桌面 `DzPrinter_Output` 目录，生成：
+- `label_<时间戳>.bin` 或 `.hex`：原始协议字节流（二进制或十六进制文本）
+- `label_<时间戳>.png`：自动解码协议字节流生成的标签预览图（白底黑字，2 倍放大）
 
 ---
 
@@ -158,7 +173,7 @@ dotnet run --project DzPrinter.Samples -- hid
 ```csharp
 using DzPrinter.Transport.Ble;
 
-var bleTransport = new WinRtBleTransport(new BleConnectionOptions
+var bleTransport = new WinRtBleTransport(new BleTransportOptions
 {
     ServiceUuid = new Guid("000018F0-0000-1000-8000-00805F9B34FB"),
     PackSize = 20,          // MTU-3，每包最大字节数
@@ -171,7 +186,7 @@ var bleTransport = new WinRtBleTransport(new BleConnectionOptions
 ```csharp
 using DzPrinter.Transport.Hid;
 
-var hidTransport = new HidSharpTransport(new HidConnectionOptions
+var hidTransport = new HidSharpTransport(new HidTransportOptions
 {
     VendorId = 0x0483,      // 可选：按 VID 过滤
     ProductId = 0x5750,     // 可选：按 PID 过滤
@@ -179,6 +194,24 @@ var hidTransport = new HidSharpTransport(new HidConnectionOptions
     ReportId = 0,
 });
 ```
+
+**文件输出虚拟传输层**（无需真实打印机，用于调试/测试）：
+
+```csharp
+using DzPrinter.Transport.File;
+
+var fileTransport = new FileTransport(new FileTransportOptions
+{
+    OutputPath = "print_output.bin",  // 输出文件路径
+    Format = FileOutputFormat.RawBinary, // 或 HexText（十六进制文本）
+    SavePngPreview = true,              // 断开时自动生成 PNG 预览
+    PngOutputPath = "print_output.png", // PNG 路径（可选，默认同路径同名）
+    PngBackground = 1,                  // 0=黑底白字, 1=白底黑字（默认）
+    PngScale = 2,                       // PNG 缩放倍数（1=1:1, 2=放大2倍）
+});
+```
+
+`FileTransport` 的 `DiscoverAsync` 返回一台虚拟设备（`D60-File`），`ConnectAsync` 打开文件流，`SendAsync` 将字节写入文件，`DisconnectAsync` 关闭文件并（如启用）生成 PNG 预览。PNG 预览由内置的 `PrintPreviewDecoder` 实现，支持解码协议帧（PAGE_START/WIDTH、RAW BITMAP、REPEAT、RLEC/RLE5X/RLE5D/RLE6X/RLE6D）并渲染为位图。
 
 #### 设备发现
 
@@ -564,14 +597,18 @@ canvas.DrawImageResizeLabel(new DrawOptions
 
 ```csharp
 using DzPrinter.Printer;
+using DzPrinter.Transport.Ble;
+using DzPrinter.Transport.File;
+using DzPrinter.Transport.Hid;
 
 // 创建设备管理器（注入传输层工厂）
 var manager = new DeviceManager(type =>
 {
     return type switch
     {
-        LpaDeviceType.WebBle => new WinRtBleTransport(new BleConnectionOptions()),
-        LpaDeviceType.WebHid => new HidSharpTransport(new HidConnectionOptions()),
+        LpaDeviceType.Ble  => new WinRtBleTransport(new BleTransportOptions()),
+        LpaDeviceType.UsbHid => new HidSharpTransport(new HidTransportOptions()),
+        LpaDeviceType.File => new FileTransport(new FileTransportOptions { SavePngPreview = true }),
         _ => throw new NotSupportedException()
     };
 });
@@ -637,6 +674,96 @@ bool tradeOk = DzPrinter.IsTradeSupported("A", new[] { "A", "B" });
 
 ---
 
+### 8. 文件输出与 PNG 预览
+
+`FileTransport` 是一个虚拟传输层，将打印数据写入本地文件而非发送到真实打印机。适用于：
+
+- **调试**：将打印数据保存到文件，用十六进制工具逐帧分析协议
+- **测试**：无需真实打印机即可验证绘制与编码逻辑
+- **预览**：自动解码协议字节流生成 PNG 预览图，直观查看打印效果
+
+#### 基本用法
+
+```csharp
+using DzPrinter.Transport.File;
+using DzPrinter.Jobs;
+using DzPrinter.Printer;
+
+// 1. 创建文件传输层（启用 PNG 预览）
+using var transport = new FileTransport(new FileTransportOptions
+{
+    OutputPath = "output.bin",       // 原始数据文件
+    Format = FileOutputFormat.RawBinary, // 或 HexText
+    SavePngPreview = true,           // 启用 PNG 预览
+    PngOutputPath = "output.png",    // PNG 输出路径
+    PngBackground = 1,               // 1=白底黑字, 0=黑底白字
+    PngScale = 2,                    // 放大 2 倍
+});
+
+using var manager = new DzPrinterManager(transport);
+
+// 2. 发现虚拟设备并连接
+var devices = await manager.DiscoverAsync(LpaDeviceType.File);
+await manager.ConnectAsync(devices[0]);
+
+// 3. 绘制 + 打印（写入文件）
+using var ctx = manager.CreateDrawContext(new DrawJobOptions
+{
+    WidthMm = 60, HeightMm = 40,
+    PrinterInfo = new PrinterInfo { PrinterDpi = 203, PrinterWidth = 384 },
+});
+ctx.Start();
+ctx.Canvas.DrawText(new DrawOptions { Text = "Test", X = 5, Y = 5, FontHeight = 4 });
+await manager.PrintAsync(ctx);
+
+// 4. 断开（关闭文件 + 生成 PNG）
+await manager.DisconnectAsync();
+// → output.bin 已写入
+// → output.png 已生成
+```
+
+#### 输出格式
+
+| 格式 | 枚举值 | 说明 |
+|---|---|---|
+| 原始二进制 | `FileOutputFormat.RawBinary` | 直接写入原始字节（`.bin`），可供重放 |
+| 十六进制文本 | `FileOutputFormat.HexText` | 每行带时间戳的十六进制文本（`.hex`），便于阅读 |
+
+#### PNG 预览
+
+PNG 预览由 `PrintPreviewDecoder` 实现，支持解码以下协议帧：
+
+| 命令 | 说明 |
+|---|---|
+| `CMD_PAGE_WIDTH` | 页面宽度（确定位图字节宽度） |
+| `CMD_BITMAP_PRINT` | 原始位图行数据 |
+| `CMD_BITMAP_REPEAT` | 重复上一行 |
+| `CMD_BITMAP_RLEC` | RLEC 压缩行 |
+| `CMD_BITMAP_RLE5X/RLE5D` | RLE5 压缩行（独立/差分） |
+| `CMD_BITMAP_RLE6X/RLE6D` | RLE6 压缩行（独立/差分） |
+
+#### 独立使用解码器
+
+```csharp
+using DzPrinter.Transport.File;
+
+// 从已保存的 .bin 文件解码并生成 PNG
+var bytes = File.ReadAllBytes("output.bin");
+var result = PrintPreviewDecoder.Decode(bytes);
+if (result.Success)
+{
+    PrintPreviewDecoder.SavePng(result, "preview.png", background: 1, scale: 2);
+    Console.WriteLine($"解码成功: {result.PixelWidth}x{result.PixelHeight}");
+}
+else
+{
+    foreach (var w in result.Warnings)
+        Console.WriteLine($"警告: {w}");
+}
+```
+
+---
+
 ## 枚举速查
 
 ### 连接状态（`ConnectionState`）
@@ -657,6 +784,7 @@ bool tradeOk = DzPrinter.IsTradeSupported("A", new[] { "A", "B" });
 | `HidUsb` | HID USB |
 | `BluetoothClassic` | 经典蓝牙 SPP |
 | `TcpIp` | TCP/IP 网络 |
+| `File` | 文件输出虚拟传输（调试/测试） |
 | `Mock` | 模拟/测试 |
 
 ### 对齐方式（`Alignment`）
@@ -738,8 +866,9 @@ bool tradeOk = DzPrinter.IsTradeSupported("A", new[] { "A", "B" });
 | 值 | 含义 |
 |---|---|
 | `Auto` | 自动检测 |
-| `WebBle` | BLE 低功耗蓝牙 |
-| `WebHid` | HID USB |
+| `Ble` | BLE 低功耗蓝牙 |
+| `UsbHid` | HID USB |
+| `File` | 文件输出虚拟打印（调试/测试） |
 
 ### API 操作结果（`LpaResult`）
 

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Transport.File</RootNamespace>
+    <AssemblyName>DzPrinter.Transport.File</AssemblyName>
+    <!--
+      文件输出虚拟传输层。
+      职责：
+        将打印数据写入文件（原始二进制、十六进制文本、PNG 图像等），
+        用于调试、测试或替代真实打印机进行脱机打印。
+      平台无关，不引用任何 Windows SDK。
+      依赖 Core (日志、工具)、Transport (接口)、Imaging (图像模型)。
+      SkiaSharp 用于 PNG 编码预览。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+    <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+  </ItemGroup>
+
+</Project>

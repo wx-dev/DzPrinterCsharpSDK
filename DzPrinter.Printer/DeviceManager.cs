@@ -291,6 +291,7 @@ public sealed class DeviceManager : IDisposable
         {
             LpaDeviceType.Ble => new BleConnection(transport),
             LpaDeviceType.UsbHid => new HidConnection(transport),
+            LpaDeviceType.File => new FileConnection(transport),
             _ => new BleConnection(transport)
         };
 

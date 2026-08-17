@@ -50,8 +50,8 @@ public sealed class PrintImageOptions
     /// </summary>
     public int PrintAlignment { get; set; }
 
-    /// <summary>软件能力标志。JS: <c>softwareFlags</c>。默认 RLE5 支持。</summary>
-    public SoftwareFlags SoftwareFlags { get; set; } = SoftwareFlags.PCPDSF_RLE5_BITMAP;
+    /// <summary>软件能力标志。JS: <c>softwareFlags</c>。默认 RLE5 支持 + 左对齐。</summary>
+    public SoftwareFlags SoftwareFlags { get; set; } = SoftwareFlags.PCPDSF_RLE5_BITMAP | SoftwareFlags.PCPDSF_PRTA_LEFT;
 
     /// <summary>硬件能力标志。JS: <c>hardwareFlags</c>。</summary>
     public HardwareFlags HardwareFlags { get; set; }

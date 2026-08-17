@@ -18,7 +18,10 @@ public enum LpaDeviceType
     Ble = 100,
 
     /// <summary>USB HID。JS: WEB_HID=101。</summary>
-    UsbHid = 101
+    UsbHid = 101,
+
+    /// <summary>文件输出虚拟打印。将打印数据写入文件（供调试/测试）。</summary>
+    File = 198,
 }
 
 /// <summary>

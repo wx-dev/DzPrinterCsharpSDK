@@ -23,6 +23,7 @@
     <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport.Ble\DzPrinter.Transport.Ble.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport.Hid\DzPrinter.Transport.Hid.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport.File\DzPrinter.Transport.File.csproj" />
     <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />
     <ProjectReference Include="..\DzPrinter.Imaging\DzPrinter.Imaging.csproj" />
     <ProjectReference Include="..\DzPrinter.Barcode\DzPrinter.Barcode.csproj" />
