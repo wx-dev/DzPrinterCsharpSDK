@@ -157,6 +157,9 @@ dotnet run --project DzPrinter.Samples -- file-hex
 文件输出模式会将打印数据写入桌面 `DzPrinter_Output` 目录，生成：
 - `label_<时间戳>.bin` 或 `.hex`：原始协议字节流（二进制或十六进制文本）
 - `label_<时间戳>.png`：自动解码协议字节流生成的标签预览图（白底黑字，2 倍放大）
+示例图片：
+<img width="768" height="3516" alt="label_20260818_195105" src="https://github.com/user-attachments/assets/607b811e-30cb-4db4-bf41-006fe8cfac10" />
+ 
 
 ---
 
