@@ -20,6 +20,7 @@ using DzPrinter.Transport;
 using DzPrinter.Transport.Ble;
 using DzPrinter.Transport.File;
 using DzPrinter.Transport.Hid;
+using SkiaSharp;
 
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
@@ -183,7 +184,7 @@ static async Task PrintWithFileTransportAsync(
     try
     {
         // 3. 创建画布并绘制
-        Console.WriteLine($"[{label}] 创建画布 48×220mm ...");
+        Console.WriteLine($"[{label}] 创建画布 48mm×220mm ...");
         using var ctx = manager.CreateDrawContext(new DrawJobOptions
         {
             WidthMm = 48,
@@ -340,7 +341,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
     try
     {
         // 4. 创建画布并绘制内容
-        Console.WriteLine($"[{label}] 创建画布 48×220mm ...");
+        Console.WriteLine($"[{label}] 创建画布 48mm×220mm ...");
         using var ctx = manager.CreateDrawContext(new DrawJobOptions
         {
             WidthMm = 48,
@@ -381,7 +382,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
 }
 
 // =====================================================================
-//  复杂标签绘制：48×200mm 画布，覆盖 SDK 全部绘图能力。
+//  复杂标签绘制：48×220mm 画布，覆盖 SDK 全部绘图能力。
 //
 //  布局（Y 坐标，单位 mm）：
 //    0 ~  20   标题区：粗体大标题 + 副标题 + 分隔线
@@ -402,7 +403,7 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
     canvas.DrawRect(new DrawOptions
     {
         X = 2, Y = 2,
-        Width = 44, Height = 246,
+        Width = 44, Height = 216,
         LineWidth = 0.5,
         Fill = false,
     });
@@ -421,7 +422,7 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
     // 副标题
     canvas.DrawText(new DrawOptions
     {
-        Text = "Complex Label Test (48x200mm)",
+        Text = "Complex Label Test (48x220mm)",
         X = 4,
         Y = 11,
         FontHeight = 3,
@@ -696,7 +697,7 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
         Text = "Bold Text",
         X = 4,
         Y = 124,
-        FontHeight = 4,
+        FontHeight = 3,
         FontStyle = FontStyle.Bold,
     });
 
@@ -706,7 +707,7 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
         Text = "Italic Text",
         X = 4,
         Y = 129,
-        FontHeight = 4,
+        FontHeight = 3,
         FontStyle = FontStyle.Italic,
     });
 
@@ -716,7 +717,7 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
         Text = "Underline Text",
         X = 4,
         Y = 134,
-        FontHeight = 4,
+        FontHeight = 3,
         FontStyle = FontStyle.Underline,
     });
 
@@ -810,7 +811,7 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
     // 生成 QR 码
     var qrMatrix = Barcode2DCreator.CreateQRCode(new Barcode2DRequest
     {
-        Text = "https://github.com/DzPrinter/DzPrinterCsharpSDK",
+        Text = "https://github.com/wx-dev/DzPrinterCsharpSDK",
         BarcodeType = TwoDBarcodeKind.QRCode,
     });
 

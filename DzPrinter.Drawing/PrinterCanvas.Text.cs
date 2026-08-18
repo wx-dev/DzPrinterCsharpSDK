@@ -455,6 +455,7 @@ public sealed partial class PrinterCanvas
         var A = opt.CharSpace > 0 ? opt.CharSpace.Value : 0;
 
         _fillPaint.Color = ParseColor(textColor);
+        _textPaint.Color = ParseColor(textColor);
         SetFont(P, opt.FontStyle, opt.FontName);
         SetTextBaseline(TextBaselineDefault);
 
