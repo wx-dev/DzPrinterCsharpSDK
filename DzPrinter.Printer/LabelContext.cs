@@ -141,12 +141,12 @@ public sealed class LabelContext
         {
             DrawType.Text => Canvas.DrawText(opt),
             DrawType.Barcode => Draw1DBarcode(item, opt),
-            DrawType.QRCode => Draw2DBarcode(item, opt, Barcode2DType.QRCode),
-            DrawType.PDF417 => Draw2DBarcode(item, opt, Barcode2DType.PDF417),
-            DrawType.DataMatrix => Draw2DBarcode(item, opt, Barcode2DType.DMCode),
-            DrawType.DataMatrixAlt => Draw2DBarcode(item, opt, Barcode2DType.DMCode),
-            DrawType.GridMatrix => Draw2DBarcode(item, opt, Barcode2DType.GMCode),
-            DrawType.GridMatrixAlt => Draw2DBarcode(item, opt, Barcode2DType.GMCode),
+            DrawType.QRCode => Draw2DBarcode(item, opt, TwoDBarcodeKind.QRCode),
+            DrawType.PDF417 => Draw2DBarcode(item, opt, TwoDBarcodeKind.PDF417),
+            DrawType.DataMatrix => Draw2DBarcode(item, opt, TwoDBarcodeKind.DMCode),
+            DrawType.DataMatrixAlt => Draw2DBarcode(item, opt, TwoDBarcodeKind.DMCode),
+            DrawType.GridMatrix => Draw2DBarcode(item, opt, TwoDBarcodeKind.GMCode),
+            DrawType.GridMatrixAlt => Draw2DBarcode(item, opt, TwoDBarcodeKind.GMCode),
             DrawType.Image => Canvas.DrawImage(opt),
             DrawType.Rect => Canvas.DrawRect(opt),
             DrawType.Rectangle => Canvas.DrawRect(opt),
@@ -177,12 +177,10 @@ public sealed class LabelContext
         if (string.IsNullOrEmpty(item.Text)) return false;
 
         // 编码条码
-        // 注意：LabelItem.BarcodeType 与 DzPrinter.Printer.BarcodeType 同值，
-        // 但 Barcode1DRequest.BarcodeType 期望 DzPrinter.Barcode.BarcodeType，需要显式转换。
-        // 使用 global:: 前缀避免与 DzPrinter.Printer.DzPrinter 静态类名称冲突。
+        // LabelItem.BarcodeType 为 int，直接转换为 DzPrinter.Barcode.BarcodeType
         var barcodeType = item.BarcodeType > 0
-            ? (global::DzPrinter.Barcode.BarcodeType)item.BarcodeType
-            : global::DzPrinter.Barcode.BarcodeType.AUTO;
+            ? (BarcodeType)item.BarcodeType
+            : BarcodeType.AUTO;
 
         var request = new Barcode1DRequest
         {

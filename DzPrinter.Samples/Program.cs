@@ -12,6 +12,7 @@
 //    dotnet run --project DzPrinter.Samples -- list       # 仅列出设备
 // =====================================================================
 
+using DzPrinter.Barcode;
 using DzPrinter.Drawing;
 using DzPrinter.Jobs;
 using DzPrinter.Printer;
@@ -120,8 +121,6 @@ static async Task RunFileSampleAsync(FileOutputFormat format)
         PngScale = 2,      // 放大 2 倍便于查看
     });
 
-    // 不通过 PrintWithTransportAsync 的"发现设备→选择→连接"流程（File 是虚拟设备）
-    // 直接走通用流程即可；传入 "File" label，通用方法会自动处理 LpaDeviceType.File。
     await PrintWithFileTransportAsync(transport, "File", outputPath, pngPath);
 }
 
@@ -183,12 +182,12 @@ static async Task PrintWithFileTransportAsync(
 
     try
     {
-        // 3. 创建画布并绘制（48×48mm 正方形布局）
-        Console.WriteLine($"[{label}] 创建画布 48×48mm ...");
+        // 3. 创建画布并绘制
+        Console.WriteLine($"[{label}] 创建画布 48×220mm ...");
         using var ctx = manager.CreateDrawContext(new DrawJobOptions
         {
             WidthMm = 48,
-            HeightMm = 48,
+            HeightMm = 220,
             Orientation = 0,
             PrinterInfo = new PrinterInfo
             {
@@ -199,108 +198,7 @@ static async Task PrintWithFileTransportAsync(
         });
         ctx.Start();
 
-        // ---- 标题 ----
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = "DZPrinter SDK",
-            X = 3,
-            Y = 3,
-            FontHeight = 5,
-            TextAlignment = Alignment.Start,
-            FontStyle = FontStyle.Bold,
-        });
-
-        // ---- 分隔线（纯线） ----
-        ctx.Canvas.DrawLine(new DrawOptions
-        {
-            X1 = 3,
-            Y1 = 9,
-            X2 = 45, // 宽度 48 - 边距 3 = 45
-            Y2 = 9,
-            LineWidth = 1,
-        });
-
-        // ---- 文本信息 ----
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = $"Date : {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
-            X = 3,
-            Y = 11,
-            FontHeight = 3,
-        });
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = $"Mode : {label} (FileTransport)",
-            X = 3,
-            Y = 14,
-            FontHeight = 3,
-        });
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = "Output: 48 x 48 mm",
-            X = 3,
-            Y = 17,
-            FontHeight = 3,
-        });
-
-        // ---- 填充矩形（实心） ----
-        ctx.Canvas.DrawRect(new DrawOptions
-        {
-            X = 3,
-            Y = 22,
-            Width = 12,
-            Height = 12,
-            LineWidth = 1,
-            Fill = true,
-        });
-
-        // ---- 空心矩形 ----
-        ctx.Canvas.DrawRect(new DrawOptions
-        {
-            X = 18,
-            Y = 22,
-            Width = 12,
-            Height = 12,
-            LineWidth = 1,
-            Fill = false,
-        });
-
-        // ---- 矩形右侧的二维码占位（用多行小点模拟，便于看位置） ----
-        ctx.Canvas.DrawRect(new DrawOptions
-        {
-            X = 34,
-            Y = 22,
-            Width = 11,
-            Height = 11,
-            Fill = true,
-        });
-        ctx.Canvas.DrawRect(new DrawOptions
-        {
-            X = 34,
-            Y = 34,
-            Width = 11,
-            Height = 4,
-            Fill = false,
-            LineWidth = 1,
-        });
-
-        // ---- 底部脚注 ----
-        ctx.Canvas.DrawLine(new DrawOptions
-        {
-            X1 = 3,
-            Y1 = 43,
-            X2 = 45,
-            Y2 = 43,
-            LineWidth = 1,
-        });
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = "Virtual File Print Preview",
-            X = 3,
-            Y = 44,
-            FontHeight = 2.5,
-            TextAlignment = Alignment.Start,
-        });
+        DrawComplexLabel(ctx.Canvas, label);
 
         // 4. 打印（写入文件）
         Console.WriteLine($"[{label}] 正在写入打印数据 ...");
@@ -442,11 +340,11 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
     try
     {
         // 4. 创建画布并绘制内容
-        Console.WriteLine($"[{label}] 创建画布 40×30mm ...");
+        Console.WriteLine($"[{label}] 创建画布 48×220mm ...");
         using var ctx = manager.CreateDrawContext(new DrawJobOptions
         {
-            WidthMm = 40,
-            HeightMm = 30,
+            WidthMm = 48,
+            HeightMm = 220,
             Orientation = 0,
             PrinterInfo = new PrinterInfo
             {
@@ -457,48 +355,7 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
         });
         ctx.Start();
 
-        // 绘制标题
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = "DzPrinter SDK",
-            X = 5,
-            Y = 3,
-            FontHeight = 4,
-            TextAlignment = Alignment.Start,
-        });
-
-        // 绘制分隔线
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = "--------------------",
-            X = 5,
-            Y = 5,
-            FontHeight = 3,
-        });
-
-        // 绘制内容
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = $"Date: {DateTime.Now:yyyy-MM-dd}",
-            X = 5,
-            Y = 7,
-            FontHeight = 3,
-        });
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = $"Transport: {label}",
-            X = 5,
-            Y = 10,
-            FontHeight = 3,
-        });
-        ctx.Canvas.DrawText(new DrawOptions
-        {
-            Text = "Hello World!",
-            X = 5,
-            Y = 13,
-            FontHeight = 4,
-            TextAlignment = Alignment.Start,
-        });
+        DrawComplexLabel(ctx.Canvas, label);
 
         // 5. 打印
         Console.WriteLine($"[{label}] 正在打印 ...");
@@ -521,4 +378,482 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
         await manager.DisconnectAsync();
         Console.WriteLine($"[{label}] 已断开。");
     }
+}
+
+// =====================================================================
+//  复杂标签绘制：48×200mm 画布，覆盖 SDK 全部绘图能力。
+//
+//  布局（Y 坐标，单位 mm）：
+//    0 ~  20   标题区：粗体大标题 + 副标题 + 分隔线
+//   20 ~  45   信息区：日期/模式/尺寸 + 虚线分隔
+//   45 ~  70   图形区①：填充矩形 + 空心矩形 + 圆角矩形
+//   70 ~  95   图形区②：圆 + 椭圆 + 嵌套矩形
+//   95 ~ 120   网格区：虚线网格 + 对角线
+//  120 ~ 145   文本区①：多行文本 + 自动换行 + 反色文本
+//  145 ~ 170   条码区：1D Code128 条码
+//  170 ~ 195   二维码区：QR Code
+//  210 ~ 215   底部脚注
+// =====================================================================
+static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
+{
+    // ========== 1. 标题区 (Y: 0~20mm) ==========
+
+    // 外边框（整个标签）
+    canvas.DrawRect(new DrawOptions
+    {
+        X = 2, Y = 2,
+        Width = 44, Height = 246,
+        LineWidth = 0.5,
+        Fill = false,
+    });
+
+    // 粗体大标题
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "DzPrinter SDK",
+        X = 4,
+        Y = 4,
+        FontHeight = 6,
+        FontStyle = FontStyle.Bold,
+        TextAlignment = Alignment.Start,
+    });
+
+    // 副标题
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Complex Label Test (48x200mm)",
+        X = 4,
+        Y = 11,
+        FontHeight = 3,
+        TextAlignment = Alignment.Start,
+    });
+
+    // 标题区分隔线（粗线）
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 17,
+        X2 = 44, Y2 = 17,
+        LineWidth = 1,
+    });
+
+    // ========== 2. 信息区 (Y: 20~45mm) ==========
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = $"Date : {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+        X = 4,
+        Y = 19,
+        FontHeight = 3,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = $"Mode : {label} Transport",
+        X = 4,
+        Y = 23,
+        FontHeight = 3,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Size : 48 x 200 mm @ 203 DPI",
+        X = 4,
+        Y = 27,
+        FontHeight = 3,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = $"Page : 1/1  [{DateTime.Now:HHmmss}]",
+        X = 4,
+        Y = 31,
+        FontHeight = 3,
+    });
+
+    // 虚线分隔
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 36,
+        X2 = 44, Y2 = 36,
+        LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+
+    // ========== 3. 图形区① (Y: 37~70mm) — 矩形系列 ==========
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "--- Shapes: Rect ---",
+        X = 4,
+        Y = 38,
+        FontHeight = 2.5,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 填充矩形（实心黑块）
+    canvas.DrawRect(new DrawOptions
+    {
+        X = 4,
+        Y = 43,
+        Width = 12,
+        Height = 12,
+        Fill = true,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Fill",
+        X = 4,
+        Y = 56,
+        FontHeight = 2.5,
+        TextAlignment = Alignment.Start,
+    });
+
+    // 空心矩形
+    canvas.DrawRect(new DrawOptions
+    {
+        X = 18,
+        Y = 43,
+        Width = 12,
+        Height = 12,
+        LineWidth = 1,
+        Fill = false,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Stroke",
+        X = 18,
+        Y = 56,
+        FontHeight = 2.5,
+        TextAlignment = Alignment.Start,
+    });
+
+    // 圆角矩形
+    canvas.DrawRoundRect(new DrawOptions
+    {
+        X = 32,
+        Y = 43,
+        Width = 12,
+        Height = 12,
+        Radius = 2,
+        LineWidth = 1,
+        Fill = false,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Round",
+        X = 32,
+        Y = 56,
+        FontHeight = 2.5,
+        TextAlignment = Alignment.Start,
+    });
+
+    // ========== 4. 图形区② (Y: 62~95mm) — 圆形系列 ==========
+
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 62,
+        X2 = 44, Y2 = 62,
+        LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "--- Shapes: Circle/Ellipse ---",
+        X = 4,
+        Y = 63,
+        FontHeight = 2.5,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 实心圆
+    canvas.DrawCircle(new DrawOptions
+    {
+        X = 10,
+        Y = 75,
+        Radius = 5,
+        Fill = true,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Circle",
+        X = 5,
+        Y = 82,
+        FontHeight = 2.5,
+    });
+
+    // 空心圆
+    canvas.DrawCircle(new DrawOptions
+    {
+        X = 24,
+        Y = 75,
+        Radius = 5,
+        Fill = false,
+        LineWidth = 1,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Ring",
+        X = 20,
+        Y = 82,
+        FontHeight = 2.5,
+    });
+
+    // 椭圆
+    canvas.DrawEllipse(new DrawOptions
+    {
+        X = 33,
+        Y = 70,
+        Width = 10,
+        Height = 8,
+        Fill = false,
+        LineWidth = 1,
+    });
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Ellipse",
+        X = 33,
+        Y = 80,
+        FontHeight = 2.5,
+    });
+
+    // ========== 5. 网格区 (Y: 88~120mm) ==========
+
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 88,
+        X2 = 44, Y2 = 88,
+        LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "--- Grid Pattern ---",
+        X = 4,
+        Y = 89,
+        FontHeight = 2.5,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 网格：水平虚线（5 条，间距 5mm）
+    for (var gy = 95; gy <= 115; gy += 5)
+    {
+        canvas.DrawLine(new DrawOptions
+        {
+            X1 = 6, Y1 = gy,
+            X2 = 42, Y2 = gy,
+            LineWidth = 0.3,
+            DashLen = "1,1",
+        });
+    }
+
+    // 网格：垂直虚线（8 条，间距 5mm）
+    for (var gx = 6; gx <= 42; gx += 5)
+    {
+        canvas.DrawLine(new DrawOptions
+        {
+            X1 = gx, Y1 = 95,
+            X2 = gx, Y2 = 115,
+            LineWidth = 0.3,
+            DashLen = "1,1",
+        });
+    }
+
+    // 对角线（交叉）
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 6, Y1 = 95,
+        X2 = 42, Y2 = 115,
+        LineWidth = 0.5,
+    });
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 42, Y1 = 95,
+        X2 = 6, Y2 = 115,
+        LineWidth = 0.5,
+    });
+
+    // ========== 6. 文本区① (Y: 118~150mm) ==========
+
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 118,
+        X2 = 44, Y2 = 118,
+        LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "--- Text Styles ---",
+        X = 4,
+        Y = 119,
+        FontHeight = 2.5,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 粗体
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Bold Text",
+        X = 4,
+        Y = 124,
+        FontHeight = 4,
+        FontStyle = FontStyle.Bold,
+    });
+
+    // 斜体
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Italic Text",
+        X = 4,
+        Y = 129,
+        FontHeight = 4,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 下划线
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Underline Text",
+        X = 4,
+        Y = 134,
+        FontHeight = 4,
+        FontStyle = FontStyle.Underline,
+    });
+
+    // 反色文本（白底黑字 → 黑底白字）
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Inverse",
+        X = 4,
+        Y = 140,
+        Width = 20,
+        Height = 6,
+        FontHeight = 4,
+        AntiColor = true,
+    });
+
+    // 右侧：自动换行多行文本
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Auto wrap text demo: this long string will wrap automatically within the given width.",
+        X = 26,
+        Y = 124,
+        Width = 18,
+        FontHeight = 2.5,
+        AutoReturn = WrapMode.Char,
+    });
+
+    // ========== 7. 条码区 (Y: 148~175mm) ==========
+
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 148,
+        X2 = 44, Y2 = 148,
+        LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "--- 1D Barcode (Code128) ---",
+        X = 4,
+        Y = 149,
+        FontHeight = 2.5,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 生成 Code128 条码
+    var barcode1D = Barcode1DCreator.Create1DBarcode(new Barcode1DRequest
+    {
+        Text = "DZ20260817",
+        BarcodeType = BarcodeType.CODE128,
+    });
+
+    if (barcode1D != null)
+    {
+        canvas.Draw1DBarcode(new DrawOptions
+        {
+            Datas = barcode1D.Items.Select(i => new BarcodeItem
+            {
+                Data = i.Data,
+                Text = i.Text,
+            }).ToList(),
+            X = 4,
+            Y = 155,
+            Width = 40,
+            Height = 14,
+            TextHeight = 3,
+            TextAlignment = Alignment.Center,
+            FontHeight = 3,
+        });
+    }
+
+    // ========== 8. 二维码区 (Y: 172~198mm) ==========
+
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 172,
+        X2 = 44, Y2 = 172,
+        LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "--- 2D Barcode (QR) ---",
+        X = 4,
+        Y = 173,
+        FontHeight = 2.5,
+        FontStyle = FontStyle.Italic,
+    });
+
+    // 生成 QR 码
+    var qrMatrix = Barcode2DCreator.CreateQRCode(new Barcode2DRequest
+    {
+        Text = "https://github.com/DzPrinter/DzPrinterCsharpSDK",
+        BarcodeType = TwoDBarcodeKind.QRCode,
+    });
+
+    if (qrMatrix != null)
+    {
+        canvas.Draw2DBarcode(new DrawOptions
+        {
+            Data = qrMatrix,
+            X = 14,
+            Y = 180,
+            Width = 20,
+            ZoneSize = 2,
+            BarPixels = 4,
+            AutoScaleLevel = 2,
+            HorizontalAlignment = Alignment.Center,
+            VerticalAlignment = Alignment.Center,
+        });
+    }
+
+    // 右侧二维码说明
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Scan",
+        X = 36,
+        Y = 185,
+        FontHeight = 3,
+    });
+
+    // ========== 9. 底部脚注 (Y: 210~215mm) ==========
+
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 210,
+        X2 = 44, Y2 = 210,
+        LineWidth = 0.5,
+    });
+
+    canvas.DrawText(new DrawOptions
+    {
+        Text = $"Generated by DzPrinter SDK  [{DateTime.Now:yyyy-MM-dd}]",
+        X = 4,
+        Y = 215,
+        FontHeight = 2,
+        TextAlignment = Alignment.Start,
+    });
 }

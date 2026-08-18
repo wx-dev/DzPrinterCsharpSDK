@@ -317,86 +317,9 @@ public enum LpaPrintDarkness
     Max = 15
 }
 
-/// <summary>
-/// 1D 条码类型。对应 JS <c>t.BarcodeType</c>。
-/// </summary>
-public enum BarcodeType
-{
-    /// <summary>UPC-A。JS: UPC_A=20。</summary>
-    UpcA = 20,
-
-    /// <summary>UPC-E。JS: UPC_E=21。</summary>
-    UpcE = 21,
-
-    /// <summary>EAN-13。JS: EAN13=22。</summary>
-    Ean13 = 22,
-
-    /// <summary>EAN-8。JS: EAN8=23。</summary>
-    Ean8 = 23,
-
-    /// <summary>Code39。JS: CODE39=24。</summary>
-    Code39 = 24,
-
-    /// <summary>ITF25。JS: ITF25=25。</summary>
-    Itf25 = 25,
-
-    /// <summary>Codabar。JS: CODABAR=26。</summary>
-    Codabar = 26,
-
-    /// <summary>Code93。JS: CODE93=27。</summary>
-    Code93 = 27,
-
-    /// <summary>Code128。JS: CODE128=28。</summary>
-    Code128 = 28,
-
-    /// <summary>ISBN。JS: ISBN=29。</summary>
-    Isbn = 29,
-
-    /// <summary>扩展 Code39。JS: ECODE39=30。</summary>
-    ECode39 = 30,
-
-    /// <summary>ITF-14。JS: ITF14=31。</summary>
-    Itf14 = 31,
-
-    /// <summary>中国邮政。JS: ChinaPost=32。</summary>
-    ChinaPost = 32,
-
-    /// <summary>Matrix25。JS: Matrix25=33。</summary>
-    Matrix25 = 33,
-
-    /// <summary>Industrial25。JS: Industrial25=34。</summary>
-    Industrial25 = 34,
-
-    /// <summary>GS1-128。JS: GS1_128=35。</summary>
-    GS1_128 = 35,
-
-    /// <summary>EAN-128（同 GS1_128）。JS: EAN128=35。</summary>
-    EAN128 = 35,
-
-    /// <summary>自动。JS: AUTO=60。</summary>
-    Auto = 60
-}
-
-/// <summary>
-/// 2D 条码类型。对应 JS <c>t.Barcode2DType</c>（Object.freeze 字符串常量）。
-/// </summary>
-public static class Barcode2DType
-{
-    /// <summary>自动。JS: Auto="auto"。</summary>
-    public const string Auto = "auto";
-
-    /// <summary>QR 码。JS: QRCode="qrcode"。</summary>
-    public const string QRCode = "qrcode";
-
-    /// <summary>PDF417。JS: PDF417="pdf417"。</summary>
-    public const string PDF417 = "pdf417";
-
-    /// <summary>DataMatrix。JS: DMCode="dataMatrix"。</summary>
-    public const string DMCode = "dataMatrix";
-
-    /// <summary>GridMatrix。JS: GMCode="gridMatrix"。</summary>
-    public const string GMCode = "gridMatrix";
-}
+// 注：BarcodeType 和 Barcode2DType 已统一到 DzPrinter.Barcode 层。
+//   1D 条码类型 → DzPrinter.Barcode.BarcodeType（BarcodeEnums.cs）
+//   2D 条码类型 → DzPrinter.Barcode.TwoDBarcodeKind（BarcodeEnums.cs）
 
 /// <summary>
 /// 绘制类型。对应 JS <c>t.DrawType</c>（Object.freeze 字符串常量）。

@@ -214,7 +214,7 @@ public sealed class LabelItem
     public string? AutoReturn { get; set; }
 
     // 条码属性
-    /// <summary>1D 条码类型。对应 <see cref="BarcodeType"/> 枚举值。</summary>
+    /// <summary>1D 条码类型。对应 <see cref="DzPrinter.Barcode.BarcodeType"/> 枚举值。</summary>
     public int BarcodeType { get; set; }
     /// <summary>条码文本位置。</summary>
     public string? BarcodeTextPos { get; set; }
