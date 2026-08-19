@@ -262,8 +262,9 @@ public sealed class LPAPI : IDisposable
     }
 
     /// <summary>
-    /// 查询打印机握手信息。对应 JS <c>getPrinterInfo(options)</c>。
-    /// 发送 <see cref="PrinterCommand.CMD_DEV_HANDSHAKE"/> 握手帧并解析响应。
+    /// 查询打印机硬件信息。对应 JS <c>loadPrinterInfo()</c>。
+    /// 逐个发送 DPI / 宽度 / 硬件标志 / 电池 / 缓冲区查询命令并解析响应。
+    /// 注意：JS SDK 中 <see cref="PrinterCommand.CMD_DEV_HANDSHAKE"/> 是空操作，不使用。
     /// </summary>
     public async Task<PrinterHardwareInfo?> GetPrinterInfoAsync(int timeoutMs = 2000,
         CancellationToken cancellationToken = default)
@@ -271,15 +272,126 @@ public sealed class LPAPI : IDisposable
         var conn = Connection;
         if (conn == null || !conn.IsConnected) return null;
 
-        var requestFrame = new ProtocolPacket(PrinterCommand.CMD_DEV_HANDSHAKE).GetBytes();
-        var response = await conn.RequestAsync(requestFrame, timeoutMs, cancellationToken)
+        var info = new PrinterHardwareInfo();
+        var queryTimeout = Math.Min(timeoutMs, 1500);
+        var gotAny = false;
+
+        // 1. DPI (CMD_PRINTER_DPI = 0x71) — 无参数，响应可能 1 或 2 字节
+        var dpiPayload = await TryRequestPayloadAsync(conn, PrinterCommand.CMD_PRINTER_DPI,
+            queryTimeout, cancellationToken).ConfigureAwait(false);
+        if (dpiPayload != null && dpiPayload.Length >= 1)
+        {
+            info.Dpi = dpiPayload.Length >= 2
+                ? EbvHelper.ReadUInt16BigEndian(dpiPayload)
+                : dpiPayload[0];
+            gotAny = true;
+            Log.Info($"【LPAPI】GetPrinterInfoAsync() —— DPI={info.Dpi}");
+        }
+
+        // 2. 打印宽度 (CMD_PRINTER_WIDTH = 0x72) — 无参数，响应 [widthHi, widthLo, ...]
+        var widthPayload = await TryRequestPayloadAsync(conn, PrinterCommand.CMD_PRINTER_WIDTH,
+            queryTimeout, cancellationToken).ConfigureAwait(false);
+        if (widthPayload != null && widthPayload.Length >= 2)
+        {
+            info.PrinterWidth = (widthPayload[0] << 8) | widthPayload[1];
+            gotAny = true;
+            Log.Info($"【LPAPI】GetPrinterInfoAsync() —— PrinterWidth={info.PrinterWidth}");
+        }
+
+        // 3. 硬件标志 + 软件标志 + 电池数量 (CMD_HARDWARE_FLAGS = 0x84)
+        // JS: 先 CMD_ENABLE_SETTING[~0x80] 启用设置，再 CMD_HARDWARE_FLAGS[1] 查询
+        // 必须逐条发送+等待响应，否则多个响应帧在同一通知到达时传输层只提取第一帧
+        var enableData = unchecked((byte)~(byte)PrinterCommand.CMD_ENABLE_SETTING); // 0x7F
+        var enableFrame = new ProtocolPacket(PrinterCommand.CMD_ENABLE_SETTING, [enableData]).GetBytes();
+        await conn.RequestAsync(enableFrame, queryTimeout, cancellationToken)
+            .ConfigureAwait(false); // 启用设置，响应丢弃
+
+        var flagsQueryFrame = new ProtocolPacket(PrinterCommand.CMD_HARDWARE_FLAGS, [1]).GetBytes();
+        var flagsResp = await conn.RequestAsync(flagsQueryFrame, queryTimeout, cancellationToken)
+            .ConfigureAwait(false);
+        var flagsPayload = EbvHelper.TryGetPayload(flagsResp);
+        if (flagsPayload != null && flagsPayload.Length >= 4)
+        {
+            info.HardwareFlags = (HardwareFlags)(
+                (flagsPayload[0] << 24) | (flagsPayload[1] << 16) |
+                (flagsPayload[2] << 8) | flagsPayload[3]);
+            if (flagsPayload.Length >= 8)
+            {
+                info.SoftwareFlags = (SoftwareFlags)(
+                    (flagsPayload[4] << 24) | (flagsPayload[5] << 16) |
+                    (flagsPayload[6] << 8) | flagsPayload[7]);
+            }
+            else
+            {
+                // JS 默认值: PCPDSF_MOTOR_ANTIDIR | PCPDSF_PRTA_RIGHT | (hwFlags & PCPDSF_RLE5_BITMAP)
+                info.SoftwareFlags = SoftwareFlags.PCPDSF_MOTOR_ANTIDIR |
+                    (SoftwareFlags)((uint)info.HardwareFlags & (uint)SoftwareFlags.PCPDSF_RLE5_BITMAP);
+            }
+            info.BatteryCount = flagsPayload.Length > 20 ? flagsPayload[20] & 0xFF : 2;
+            gotAny = true;
+            Log.Info($"【LPAPI】GetPrinterInfoAsync() —— HardwareFlags={info.HardwareFlags}, " +
+                     $"SoftwareFlags={info.SoftwareFlags}, BatteryCount={info.BatteryCount}");
+        }
+        // 4. 电池详细信息 (CMD_REQ_ADCVALUE = 0x88, data=[ADCEVT_POWER=0x01])
+        // 必须在设置模式仍启用时发送（禁用前），否则设备不响应
+        // 响应帧 CMD=0x40, payload: [valid, batteryCount, voltLo, voltHi, voltCount, chargeStatus, printable]
+        var batteryFrame = new ProtocolPacket(PrinterCommand.CMD_REQ_ADCVALUE,
+            [(byte)AdcEvent.ADCEVT_POWER]).GetBytes();
+        var batteryResp = await conn.RequestAsync(batteryFrame, queryTimeout, cancellationToken)
+            .ConfigureAwait(false);
+        var batteryPayload = EbvHelper.TryGetPayload(batteryResp);
+        // JS SDK CMD_REQ_ADCVALUE + ADCEVT_POWER 响应格式（与 CMD_0x40 不同！）：
+        //   e[0] = 事件类型 (ADCEVT_POWER = 1)
+        //   e[7] = 电压高字节, e[8] = 电压低字节 → toShort(e[8], e[7])
+        //   e[10] = 充电状态 (> 0 = 充电中)
+        //   e[12] = 电池电量 (非零时有效)
+        if (batteryPayload != null && batteryPayload.Length > 0 &&
+            batteryPayload[0] == (byte)AdcEvent.ADCEVT_POWER)
+        {
+            if (batteryPayload.Length > 8)
+            {
+                // toShort(e[8], e[7]) = (e[7] << 8) | e[8]
+                info.BatteryVoltage = 0.01 * ((batteryPayload[7] << 8) | batteryPayload[8]);
+            }
+            if (batteryPayload.Length > 10)
+            {
+                info.ChargeStatus = batteryPayload[10] > 0;
+            }
+            gotAny = true;
+            Log.Info($"【LPAPI】GetPrinterInfoAsync() —— BatteryVoltage={info.BatteryVoltage}V, " +
+                     $"ChargeStatus={info.ChargeStatus}");
+        }
+        // 禁用设置模式（响应丢弃）—— 必须在电池查询之后
+        var disableFrame = new ProtocolPacket(PrinterCommand.CMD_ENABLE_SETTING, [0]).GetBytes();
+        await conn.RequestAsync(disableFrame, queryTimeout, cancellationToken)
             .ConfigureAwait(false);
 
-        // 设备返回原始协议帧，需剥离帧头提取 payload
-        var payload = EbvHelper.TryGetPayload(response);
-        if (payload == null || payload.Length < 8) return null;
+        // 5. 缓冲区大小 (CMD_BUFFER_SIZE = 0x77) — 无参数，响应 popEBV()
+        var bufPayload = await TryRequestPayloadAsync(conn, PrinterCommand.CMD_BUFFER_SIZE,
+            queryTimeout, cancellationToken).ConfigureAwait(false);
+        if (bufPayload != null && bufPayload.Length >= 1)
+        {
+            int bufVal = bufPayload.Length >= 2 && bufPayload[0] >= ProtocolConstants.EbvThreshold
+                ? EbvHelper.ToEbv(bufPayload[1], bufPayload[0])
+                : bufPayload[0];
+            info.BufferSize = 500 * (bufVal == 1 ? 2 : bufVal);
+            gotAny = true;
+            Log.Info($"【LPAPI】GetPrinterInfoAsync() —— BufferSize={info.BufferSize}");
+        }
 
-        return PrinterHardwareInfo.Parse(payload);
+        return gotAny ? info : null;
+    }
+
+    /// <summary>
+    /// 发送单条查询命令并提取 payload。
+    /// </summary>
+    private async Task<byte[]?> TryRequestPayloadAsync(DeviceConnection conn,
+        PrinterCommand cmd, int timeoutMs, CancellationToken cancellationToken)
+    {
+        var frame = new ProtocolPacket(cmd).GetBytes();
+        var resp = await conn.RequestAsync(frame, timeoutMs, cancellationToken)
+            .ConfigureAwait(false);
+        return EbvHelper.TryGetPayload(resp);
     }
 
     // ============ 内部方法 ============
@@ -323,12 +435,21 @@ public sealed class PrinterHardwareInfo
     /// <summary>打印机像素宽度。</summary>
     public int PrinterWidth { get; set; }
 
+    /// <summary>电池数量。</summary>
+    public int BatteryCount { get; set; }
+
+    /// <summary>电池电压（伏特）。</summary>
+    public double BatteryVoltage { get; set; }
+
+    /// <summary>是否正在充电。</summary>
+    public bool ChargeStatus { get; set; }
+
     /// <summary>
-    /// 从响应字节解析硬件信息。对应 JS <c>parsePrinterInfo(resp)</c>。
+    /// 从 CMD_DEV_HANDSHAKE 响应字节解析硬件信息（旧格式，部分型号不支持）。
+    /// 响应格式：[hwFlags(4)] [swFlags(4)] [bufferSize(2)] [dpi(1)] [width(2)]
     /// </summary>
     public static PrinterHardwareInfo Parse(byte[] response)
     {
-        // 响应格式：[hwFlags(4)] [swFlags(4)] [bufferSize(2)] [dpi(1)] [width(2)]
         var info = new PrinterHardwareInfo();
         if (response.Length >= 4)
             info.HardwareFlags = (HardwareFlags)(

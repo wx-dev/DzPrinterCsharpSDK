@@ -12,6 +12,7 @@
 using DzPrinter.Core;
 using HidSharp;
 using HidSharp.Reports;
+using System.Collections.Concurrent;
 
 namespace DzPrinter.Transport.Hid;
 
@@ -52,7 +53,11 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
     private Transport.ConnectionState _state = Transport.ConnectionState.Disconnected;
     private Transport.DeviceInfo? _connected;
 
-    private readonly List<byte> _readBuffer = new();
+    // 字段替换
+    private readonly ConcurrentQueue<byte> _readBuffer = new();
+    private TaskCompletionSource<byte[]>? _pendingResponse;
+    // 响应累积缓冲区：HID 读取可能分片返回，需累积到完整协议帧再交付
+    private readonly List<byte> _responseBuffer = new();
 
     public HidSharpTransport() : this(new HidTransportOptions()) { }
 
@@ -265,13 +270,43 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
     private async Task<byte[]?> RequestAsyncImpl(ReadOnlyMemory<byte> data, int timeoutMs,
         CancellationToken cancellationToken)
     {
-        await SendAsync(data, cancellationToken).ConfigureAwait(false);
-        lock (_readBuffer) _readBuffer.Clear();
-        await Task.Delay(timeoutMs, cancellationToken).ConfigureAwait(false);
-        lock (_readBuffer)
+        var tcs = new TaskCompletionSource<byte[]>();
+
+        lock (_sync)
         {
-            return _readBuffer.Count == 0 ? null : _readBuffer.ToArray();
+            _readBuffer.Clear();
+            _responseBuffer.Clear();
+            _pendingResponse = tcs;
         }
+
+        Console.WriteLine($"[HID TX] {data.Length} bytes: {BitConverter.ToString(data.Span.ToArray())}");
+
+        await SendAsync(data, cancellationToken).ConfigureAwait(false);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.Token.Register(() =>
+        {
+            byte[]? rawData = null;
+            lock (_sync)
+            {
+                if (_responseBuffer.Count > 0)
+                {
+                    rawData = _responseBuffer.ToArray();
+                    _responseBuffer.Clear();
+                }
+            }
+            tcs.TrySetResult(rawData ?? Array.Empty<byte>());
+        });
+        cts.CancelAfter(timeoutMs);
+
+        var result = await tcs.Task.ConfigureAwait(false);
+
+        lock (_sync)
+        {
+            _pendingResponse = null;
+            _responseBuffer.Clear();
+        }
+        return result.Length == 0 ? null : result;
     }
 
     public void Dispose()
@@ -311,8 +346,27 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                 var payload = UnwrapUsbTransport(buf, start, n - start);
                 if (payload.Length > 0)
                 {
-                    lock (_readBuffer) _readBuffer.AddRange(payload);
-                    DataReceived?.Invoke(this, new Transport.DataReceivedEventArgs(payload));
+                    string hexDump = BitConverter.ToString(payload).Replace("-", " ");
+                    Console.WriteLine($"[HID RX] {payload.Length} bytes: [{hexDump}]");
+
+                    lock (_sync)
+                    {
+                        if (_pendingResponse != null)
+                        {
+                            _responseBuffer.AddRange(payload);
+                            var frame = TryExtractProtocolFrame(_responseBuffer);
+                            if (frame != null)
+                            {
+                                Console.WriteLine($"[HID RX] 完整帧: {frame.Length} bytes: {BitConverter.ToString(frame)}");
+                                _pendingResponse.TrySetResult(frame);
+                                continue;
+                            }
+                            // 帧不完整，继续累积等待后续读取
+                            continue;
+                        }
+                        foreach (var b in payload) _readBuffer.Enqueue(b);
+                    }
+                    DataReceived?.Invoke(this, new DataReceivedEventArgs(payload));
                 }
             }
         }
@@ -320,6 +374,44 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         {
             Log.Warn($"【HidSharpTransport】ReadLoop exited: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 从缓冲区提取一个完整的协议帧 [0x1F][CMD][EBV长度][data][CRC]。
+    /// 找不到 0x1F 起始符时不清空缓冲区，保留数据等待后续读取补充。
+    /// </summary>
+    private static byte[]? TryExtractProtocolFrame(List<byte> buffer)
+    {
+        int startIdx = -1;
+        for (int i = 0; i < buffer.Count; i++)
+        {
+            if (buffer[i] == 0x1F) { startIdx = i; break; }
+        }
+        if (startIdx < 0) return null;
+        if (startIdx > 0) buffer.RemoveRange(0, startIdx);
+
+        if (buffer.Count < 4) return null;
+
+        int dataOffset;
+        int dataLength;
+        if (buffer[2] >= 192)
+        {
+            if (buffer.Count < 5) return null;
+            dataLength = ((buffer[2] & 0x3F) << 8) | buffer[3];
+            dataOffset = 4;
+        }
+        else
+        {
+            dataLength = buffer[2];
+            dataOffset = 3;
+        }
+
+        int totalLength = dataOffset + dataLength + 1;
+        if (buffer.Count < totalLength) return null;
+
+        var frame = buffer.GetRange(0, totalLength).ToArray();
+        buffer.RemoveRange(0, totalLength);
+        return frame;
     }
 
     /// <summary>

@@ -10,6 +10,9 @@
 //    dotnet run --project DzPrinter.Samples -- file       # File 输出 (二进制 + PNG 预览)
 //    dotnet run --project DzPrinter.Samples -- file-hex   # File 输出 (十六进制文本 + PNG 预览)
 //    dotnet run --project DzPrinter.Samples -- list       # 仅列出设备
+//    dotnet run --project DzPrinter.Samples -- info-ble             # 查看设备信息
+//    dotnet run --project DzPrinter.Samples -- info-ble --print     # 查看信息并打印到标签
+//    dotnet run --project DzPrinter.Samples -- info-hid --print     # 同上 (HID)
 // =====================================================================
 
 using DzPrinter.Barcode;
@@ -25,7 +28,7 @@ using SkiaSharp;
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "file";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "info-ble";
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("=== DzPrinter Windows 示例 ===");
@@ -46,12 +49,319 @@ switch (mode)
     case "file-hex":
         await RunFileSampleAsync(FileOutputFormat.HexText);
         break;
+    case "info-ble":
+        await RunInfoSampleAsync("ble", "BLE", args.Contains("--print"));
+        break;
+    case "info-hid":
+        await RunInfoSampleAsync("hid", "HID", args.Contains("--print"));
+        break;
     case "list":
         await ListDevicesAsync();
         break;
     default:
-        Console.WriteLine("用法: dotnet run -- [ble|hid|file|file-hex|list]");
+        Console.WriteLine("用法: dotnet run -- [ble|hid|file|file-hex|list|info-ble|info-hid]");
         break;
+}
+
+// =====================================================================
+//  打印机信息展示示例（可选打印到标签）
+// =====================================================================
+static async Task RunInfoSampleAsync(string transportMode, string label, bool printLabel)
+{
+    IDeviceTransport transport = transportMode switch
+    {
+        "ble" => new WinRtBleTransport(new BleTransportOptions
+        {
+            ServiceUuid = new Guid("000018F0-0000-1000-8000-00805F9B34FB"),
+            PackSize = 20,
+            ScanTimeoutMs = 5000,
+        }),
+        "hid" => new HidSharpTransport(new HidTransportOptions
+        {
+            NameContains = "Printer",
+            ReportId = 0,
+        }),
+        _ => throw new ArgumentException($"Unknown transport: {transportMode}"),
+    };
+
+    {
+        using var manager = new DzPrinterManager(transport);
+
+        // 1. 发现设备
+        Console.WriteLine($"[{label}] 正在扫描设备 ...");
+        IReadOnlyList<PrinterDevice> devices;
+        try
+        {
+            devices = await manager.DiscoverAsync(
+                label == "BLE" ? LpaDeviceType.Ble : LpaDeviceType.UsbHid);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{label}] 扫描失败: {ex.Message}");
+            return;
+        }
+
+        if (devices.Count == 0)
+        {
+            Console.WriteLine($"[{label}] 未发现设备。");
+            return;
+        }
+
+        Console.WriteLine($"[{label}] 发现 {devices.Count} 台设备:");
+        for (var i = 0; i < devices.Count; i++)
+            Console.WriteLine($"  {i}: {devices[i].Name}  (ID: {devices[i].DeviceId})");
+
+        var device = devices[0];
+        Console.WriteLine($"[{label}] 选中: {device.Name}");
+
+        // 2. 连接
+        Console.WriteLine($"[{label}] 正在连接 ...");
+        try
+        {
+            var connectResult = await manager.ConnectAsync(device);
+            if (connectResult != LpaResult.Ok || !manager.IsConnected)
+            {
+                Console.WriteLine($"[{label}] 连接失败: {connectResult}");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{label}] 连接异常: {ex.Message}");
+            return;
+        }
+        Console.WriteLine($"[{label}] 连接成功！\n");
+
+        // 3. 查询信息
+        var hwInfo = await manager.Api.GetPrinterInfoAsync();
+        var status = await manager.Api.GetPrintableStatusAsync();
+
+        // 4. 美观输出
+        PrintInfoCard(label, device, hwInfo, status);
+
+        // 5. 可选：将信息打印到标签
+        if (printLabel && hwInfo != null)
+        {
+            Console.WriteLine($"\n[{label}] 正在打印信息标签 ...");
+            try
+            {
+                using var ctx = manager.CreateDrawContext(new DrawJobOptions
+                {
+                    WidthMm = 48,
+                    HeightMm = 70,
+                    Orientation = 0,
+                    PrinterInfo = new PrinterInfo
+                    {
+                        PrinterDpi = hwInfo.Dpi > 0 ? hwInfo.Dpi : 203,
+                        PrinterWidth = hwInfo.PrinterWidth > 0 ? hwInfo.PrinterWidth : 384,
+                        PageCount = 1,
+                    },
+                });
+                ctx.Start();
+                DrawInfoLabel(ctx.Canvas, label, device, hwInfo, status);
+                var result = await manager.PrintAsync(ctx);
+                Console.WriteLine($"[{label}] 打印结果: {result}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{label}] 打印异常: {ex.Message}");
+            }
+        }
+
+        // 6. 断开
+        Console.WriteLine($"\n[{label}] 断开连接 ...");
+        await manager.DisconnectAsync();
+        Console.WriteLine($"[{label}] 已断开。");
+    }
+}
+
+static void PrintInfoCard(string label, PrinterDevice device,
+    PrinterHardwareInfo? hw, PrinterStatusCode status)
+{
+    const int W = 50;
+    var bar     = new string('═', W);
+    var dashBar = new string('─', W);
+
+    static int DispWidth(string s)
+    {
+        int w = 0;
+        foreach (var c in s)
+        {
+            // CJK + 全角 + emoji = 2 列
+            if (c >= 0x2E80 && c <= 0x303E ||
+                c >= 0x3040 && c <= 0x33BF ||
+                c >= 0x3400 && c <= 0x4DBF ||
+                c >= 0x4E00 && c <= 0xA4CF ||
+                c >= 0xAC00 && c <= 0xD7A3 ||
+                c >= 0xF900 && c <= 0xFAFF ||
+                c >= 0xFE30 && c <= 0xFE4F ||
+                c >= 0xFF00 && c <= 0xFF60 ||
+                c >= 0xFFE0 && c <= 0xFFE6 ||
+                c >= 0x1F300 && c <= 0x1FAFF)
+                w += 2;
+            else
+                w += 1;
+        }
+        return w;
+    }
+
+    void Line(string content)
+    {
+        int pad = W - 2 - DispWidth(content);
+        Console.WriteLine($"│  {content}{new string(' ', Math.Max(0, pad))}│");
+    }
+
+    void Sep() => Console.WriteLine($"├{dashBar}┤");
+
+    Console.WriteLine($"┌{bar}┐");
+    Line("DzPrinter 设备信息");
+    Console.WriteLine($"├{bar}┤");
+
+    Line($"▸ 设备名称      {device.Name}");
+    Line($"▸ 设备 ID       {device.DeviceId}");
+    Line($"▸ 传输方式      {label}");
+    Sep();
+
+    if (hw == null)
+    {
+        Line("⚠ 无法获取硬件信息");
+    }
+    else
+    {
+        Line($"▸ DPI 分辨率    {hw.Dpi}");
+        Line($"▸ 打印宽度      {hw.PrinterWidth} px");
+        var paperWidthMm = hw.Dpi > 0
+            ? $"{hw.PrinterWidth / (hw.Dpi / 25.4):F1} mm"
+            : "—";
+        Line($"▸ 纸张宽度      {paperWidthMm}");
+        Line($"▸ 缓冲区大小    {hw.BufferSize / 1024} KB ({hw.BufferSize} bytes)");
+        Sep();
+
+        var chargeStr = hw.ChargeStatus ? "⚡ 充电中" : "🔋 电池供电";
+        var voltageStr = hw.BatteryVoltage > 0 ? $"{hw.BatteryVoltage:F2} V" : "—";
+        var batteryBar = hw.BatteryVoltage switch
+        {
+            > 4.0  => "██████████",
+            > 3.8  => "████████░░",
+            > 3.6  => "██████░░░░",
+            > 3.4  => "████░░░░░░",
+            > 0.1  => "██░░░░░░░░",
+            _       => "░░░░░░░░░░",
+        };
+        Line($"▸ 电池数量      {hw.BatteryCount}");
+        Line($"▸ 电池电压      {voltageStr}  [{batteryBar}]");
+        Line($"▸ 充电状态      {chargeStr}");
+        Sep();
+
+        Line($"▸ 硬件标志      0x{(uint)hw.HardwareFlags:X8}");
+        Line($"▸ 软件标志      0x{(uint)hw.SoftwareFlags:X8}");
+    }
+
+    Sep();
+    var statusStr = status switch
+    {
+        PrinterStatusCode.DZIP_PRINTABLE   => "✓ 可打印",
+        PrinterStatusCode.DZIP_ISPRINTING  => "⋯ 打印中",
+        PrinterStatusCode.DZIP_ISROTATING  => "⋯ 进纸中",
+        PrinterStatusCode.DZIP_VOLTOOLOW   => "⚠ 电量过低",
+        PrinterStatusCode.DZIP_VOLTOOHIGH  => "⚠ 电量过高",
+        PrinterStatusCode.DZIP_TPHTOOHOT   => "⚠ 温度过高",
+        PrinterStatusCode.DZIP_COVEROPENED => "⚠ 盖板打开",
+        PrinterStatusCode.DZIP_NO_PAPER    => "⚠ 缺纸",
+        _                                  => status.ToString(),
+    };
+    Line($"▸ 打印机状态    {statusStr}");
+    Console.WriteLine($"└{bar}┘");
+}
+
+// =====================================================================
+//  信息标签绘制：将打印机信息排版到 48×65mm 标签上
+// =====================================================================
+static void DrawInfoLabel(PrinterCanvasMm canvas, string label,
+    PrinterDevice device, PrinterHardwareInfo hw, PrinterStatusCode status)
+{
+    // 外边框
+    canvas.DrawRect(new DrawOptions
+    {
+        X = 2, Y = 2, Width = 44, Height = 60, LineWidth = 0.5, Fill = false,
+    });
+
+    // 标题
+    canvas.DrawText(new DrawOptions
+    {
+        Text = "Printer Info",
+        X = 4, Y = 4, FontHeight = 5, FontStyle = FontStyle.Bold,
+    });
+
+    // 标题分隔线
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = 11, X2 = 44, Y2 = 11, LineWidth = 0.5,
+    });
+
+    // 内容区
+    var y = 13;
+    var lineH = 4;
+
+    void Row(string key, string val)
+    {
+        canvas.DrawText(new DrawOptions
+        {
+            Text = key, X = 4, Y = y, FontHeight = 3,
+            FontStyle = FontStyle.Bold,
+        });
+        canvas.DrawText(new DrawOptions
+        {
+            Text = val, X = 22, Y = y, FontHeight = 3,
+        });
+        y += lineH;
+    }
+
+    Row("Device:", device.Name);
+    Row("Transport:", label);
+    Row("DPI:", hw.Dpi.ToString());
+    Row("Width:", $"{hw.PrinterWidth} px");
+    Row("Buffer:", $"{hw.BufferSize / 1024} KB");
+
+    // 电池区分隔线
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = y + 1, X2 = 44, Y2 = y + 1, LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+    y += 3;
+
+    Row("Battery:", $"{hw.BatteryCount} cell(s)");
+    Row("Voltage:", $"{hw.BatteryVoltage:F2} V");
+    Row("Charging:", hw.ChargeStatus ? "Yes" : "No");
+
+    // 状态区分隔线
+    canvas.DrawLine(new DrawOptions
+    {
+        X1 = 4, Y1 = y + 1, X2 = 44, Y2 = y + 1, LineWidth = 0.5,
+        DashLen = "2,1",
+    });
+    y += 3;
+
+    var statusStr = status switch
+    {
+        PrinterStatusCode.DZIP_PRINTABLE   => "Ready",
+        PrinterStatusCode.DZIP_ISPRINTING  => "Printing...",
+        PrinterStatusCode.DZIP_VOLTOOLOW   => "Low Battery!",
+        PrinterStatusCode.DZIP_VOLTOOHIGH  => "High Voltage!",
+        PrinterStatusCode.DZIP_TPHTOOHOT   => "Overheating!",
+        PrinterStatusCode.DZIP_COVEROPENED => "Cover Open!",
+        PrinterStatusCode.DZIP_NO_PAPER    => "No Paper!",
+        _                                  => status.ToString(),
+    };
+    Row("Status:", statusStr);
+
+    // 底部时间戳
+    canvas.DrawText(new DrawOptions
+    {
+        Text = $"DzPrinter SDK  [{DateTime.Now:yyyy-MM-dd HH:mm}]",
+        X = 4, Y = 58, FontHeight = 2.5,
+    });
 }
 
 // =====================================================================
@@ -337,6 +647,28 @@ static async Task PrintWithTransportAsync(IDeviceTransport transport, string lab
         return;
     }
     Console.WriteLine($"[{label}] 连接成功！");
+
+    // ===== 新增：获取设备信息 =====
+    var hwInfo = await manager.Api.GetPrinterInfoAsync();
+    if (hwInfo != null)
+    {
+        Console.WriteLine($"[{label}] 硬件标志: {hwInfo.HardwareFlags}");
+        Console.WriteLine($"[{label}] 软件标志: {hwInfo.SoftwareFlags}");
+        Console.WriteLine($"[{label}] 缓冲区: {hwInfo.BufferSize} bytes");
+        Console.WriteLine($"[{label}] DPI: {hwInfo.Dpi}");
+        Console.WriteLine($"[{label}] 打印宽度: {hwInfo.PrinterWidth} px");
+        Console.WriteLine($"[{label}] 电池数量: {hwInfo.BatteryCount}");
+        Console.WriteLine($"[{label}] 电池电压: {hwInfo.BatteryVoltage:F2}V");
+        Console.WriteLine($"[{label}] 充电状态: {(hwInfo.ChargeStatus ? "充电中" : "未充电")}");
+    }
+
+    var status = await manager.Api.GetPrintableStatusAsync();
+    Console.WriteLine($"[{label}] 打印机状态: {status}");
+    if (status == PrinterStatusCode.DZIP_VOLTOOLOW)
+        Console.WriteLine($"[{label}] ⚠ 电量过低！");
+    else if (status == PrinterStatusCode.DZIP_VOLTOOHIGH)
+        Console.WriteLine($"[{label}] ⚠ 电量过高！");
+    // ==============================
 
     try
     {

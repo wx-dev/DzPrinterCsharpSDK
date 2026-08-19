@@ -18,7 +18,8 @@
   - [5. 图像绘制与处理](#5-图像绘制与处理)
   - [6. 设备管理（多设备）](#6-设备管理多设备)
   - [7. 打印机配置与验证](#7-打印机配置与验证)
-  - [8. 文件输出与 PNG 预览](#8-文件输出与-png-预览)
+  - [8. 打印机硬件信息](#8-打印机硬件信息)
+- [9. 文件输出与 PNG 预览](#9-文件输出与-png-预览)
 - [枚举速查](#枚举速查)
 - [依赖项](#依赖项)
 - [许可证](#许可证)
@@ -152,6 +153,16 @@ dotnet run --project DzPrinter.Samples -- file
 
 # 文件输出（十六进制文本 + PNG 预览）
 dotnet run --project DzPrinter.Samples -- file-hex
+
+# 查看打印机信息（BLE）
+dotnet run --project DzPrinter.Samples -- info-ble
+
+# 查看打印机信息（HID）
+dotnet run --project DzPrinter.Samples -- info-hid
+
+# 查看信息并打印到标签
+dotnet run --project DzPrinter.Samples -- info-ble --print
+dotnet run --project DzPrinter.Samples -- info-hid --print
 ```
 
 文件输出模式会将打印数据写入桌面 `DzPrinter_Output` 目录，生成：
@@ -677,7 +688,77 @@ bool tradeOk = DzPrinter.IsTradeSupported("A", new[] { "A", "B" });
 
 ---
 
-### 8. 文件输出与 PNG 预览
+### 8. 打印机硬件信息
+
+`GetPrinterInfoAsync` 方法查询打印机的硬件信息，包括 DPI、打印宽度、缓冲区大小、电池状态等。
+
+#### 基本用法
+
+```csharp
+// 查询打印机硬件信息
+var hwInfo = await manager.Api.GetPrinterInfoAsync(timeoutMs: 3000);
+if (hwInfo != null)
+{
+    Console.WriteLine($"DPI: {hwInfo.Dpi}");
+    Console.WriteLine($"打印宽度: {hwInfo.PrinterWidth} px");
+    Console.WriteLine($"缓冲区: {hwInfo.BufferSize} bytes");
+    Console.WriteLine($"电池数量: {hwInfo.BatteryCount}");
+    Console.WriteLine($"电池电压: {hwInfo.BatteryVoltage:F2} V");
+    Console.WriteLine($"充电状态: {(hwInfo.ChargeStatus ? "充电中" : "未充电")}");
+    Console.WriteLine($"硬件标志: 0x{(uint)hwInfo.HardwareFlags:X8}");
+    Console.WriteLine($"软件标志: 0x{(uint)hwInfo.SoftwareFlags:X8}");
+}
+
+// 查询打印机状态
+var status = await manager.Api.GetPrintableStatusAsync();
+Console.WriteLine($"打印机状态: {status}");
+```
+
+#### PrinterHardwareInfo 字段
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `Dpi` | `int` | 打印机 DPI 分辨率（如 203） |
+| `PrinterWidth` | `int` | 打印像素宽度（如 384） |
+| `BufferSize` | `int` | 缓冲区大小（bytes） |
+| `HardwareFlags` | `HardwareFlags` | 硬件能力标志（位掩码） |
+| `SoftwareFlags` | `SoftwareFlags` | 软件能力标志（位掩码） |
+| `BatteryCount` | `int` | 电池数量 |
+| `BatteryVoltage` | `double` | 电池电压（V） |
+| `ChargeStatus` | `bool` | 是否正在充电 |
+
+#### 查询流程
+
+该方法内部按以下顺序逐条发送命令并等待响应：
+
+| 步骤 | 命令 | 说明 |
+|---|---|---|
+| 1 | `CMD_PRINTER_DPI (0x71)` | 获取 DPI 分辨率 |
+| 2 | `CMD_PRINTER_WIDTH (0x72)` | 获取打印宽度 |
+| 3 | `CMD_ENABLE_SETTING [0x7F]` | 启用设置模式 |
+| 4 | `CMD_HARDWARE_FLAGS [0x01]` | 获取硬件/软件标志 + 电池数量 |
+| 5 | `CMD_REQ_ADCVALUE [ADCEVT_POWER]` | 获取电池电压/充电状态 |
+| 6 | `CMD_ENABLE_SETTING [0x00]` | 禁用设置模式 |
+| 7 | `CMD_BUFFER_SIZE (0x77)` | 获取缓冲区大小 |
+
+> **注意**：步骤 3-6 必须逐条发送并等待响应，不能合并发送。电池查询（步骤 5）必须在设置模式启用期间发送（步骤 3 之后、步骤 6 之前），否则设备不响应。
+
+#### 打印机状态码（PrinterStatusCode）
+
+| 值 | 枚举 | 说明 |
+|---|---|---|
+| 0 | `DZIP_PRINTABLE` | 可打印 |
+| 1 | `DZIP_ISPRINTING` | 打印中 |
+| 2 | `DZIP_ISROTATING` | 进纸中 |
+| 30 | `DZIP_VOLTOOLOW` | 电量过低 |
+| 31 | `DZIP_VOLTOOHIGH` | 电量过高 |
+| 33 | `DZIP_TPHTOOHOT` | 打印头温度过高 |
+| 34 | `DZIP_COVEROPENED` | 盖板已打开 |
+| 35 | `DZIP_NO_PAPER` | 缺纸 |
+
+---
+
+### 9. 文件输出与 PNG 预览
 
 `FileTransport` 是一个虚拟传输层，将打印数据写入本地文件而非发送到真实打印机。适用于：
 

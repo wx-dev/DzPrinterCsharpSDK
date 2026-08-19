@@ -11,6 +11,8 @@
 // =====================================================================
 
 using DzPrinter.Core;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
@@ -54,7 +56,9 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
     private Transport.DeviceInfo? _connected;
 
     // 响应等待队列
-    private readonly List<byte> _notifyBuffer = new();
+    private TaskCompletionSource<byte[]>? _pendingResponse;
+    // 响应累积缓冲区：BLE 通知可能分片到达，需累积到完整协议帧再交付
+    private readonly List<byte> _responseBuffer = new();
 
     public WinRtBleTransport() : this(new BleTransportOptions()) { }
 
@@ -270,10 +274,10 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
             if (writeChar == null) throw new InvalidOperationException("未找到可写 GATT 特征");
             if (notifyChar != null)
             {
+                notifyChar.ValueChanged += OnNotifyValueChanged;
                 await notifyChar.WriteClientCharacteristicConfigurationDescriptorAsync(
                     GattClientCharacteristicConfigurationDescriptorValue.Notify)
                     .AsTask(cancellationToken).ConfigureAwait(false);
-                notifyChar.ValueChanged += OnNotifyValueChanged;
             }
 
             lock (_sync)
@@ -360,13 +364,40 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
     private async Task<byte[]?> RequestAsyncImpl(ReadOnlyMemory<byte> data, int timeoutMs,
         CancellationToken cancellationToken)
     {
-        await SendAsync(data, cancellationToken).ConfigureAwait(false);
-        lock (_notifyBuffer) _notifyBuffer.Clear();
-        await Task.Delay(timeoutMs, cancellationToken).ConfigureAwait(false);
-        lock (_notifyBuffer)
+        var tcs = new TaskCompletionSource<byte[]>();
+
+        lock (_sync)
         {
-            return _notifyBuffer.Count == 0 ? null : _notifyBuffer.ToArray();
+            _responseBuffer.Clear();
+            _pendingResponse = tcs;
         }
+
+        await SendAsync(data, cancellationToken).ConfigureAwait(false);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.Token.Register(() =>
+        {
+            byte[]? rawData = null;
+            lock (_sync)
+            {
+                if (_responseBuffer.Count > 0)
+                {
+                    rawData = _responseBuffer.ToArray();
+                    _responseBuffer.Clear();
+                }
+            }
+            tcs.TrySetResult(rawData ?? Array.Empty<byte>());
+        });
+        cts.CancelAfter(timeoutMs);
+
+        var result = await tcs.Task.ConfigureAwait(false);
+
+        lock (_sync)
+        {
+            _pendingResponse = null;
+            _responseBuffer.Clear();
+        }
+        return result.Length == 0 ? null : result;
     }
 
     public void Dispose()
@@ -381,8 +412,66 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         using var reader = DataReader.FromBuffer(a.CharacteristicValue);
         var bytes = new byte[reader.UnconsumedBufferLength];
         reader.ReadBytes(bytes);
-        lock (_notifyBuffer) _notifyBuffer.AddRange(bytes);
-        DataReceived?.Invoke(this, new Transport.DataReceivedEventArgs(bytes));
+
+        string hexDump = BitConverter.ToString(bytes).Replace("-", " ");
+        Console.WriteLine($"[BLE RX] {bytes.Length} bytes: [{hexDump}]");
+
+        lock (_sync)
+        {
+            if (_pendingResponse != null)
+            {
+                _responseBuffer.AddRange(bytes);
+                var frame = TryExtractProtocolFrame(_responseBuffer);
+                if (frame != null)
+                {
+                    Console.WriteLine($"[BLE RX] 完整帧: {frame.Length} bytes: {BitConverter.ToString(frame)}");
+                    _pendingResponse.TrySetResult(frame);
+                    return;
+                }
+                // 帧不完整，继续累积等待后续通知
+                return;
+            }
+        }
+
+        DataReceived?.Invoke(this, new DataReceivedEventArgs(bytes));
+    }
+
+    /// <summary>
+    /// 从缓冲区提取一个完整的协议帧 [0x1F][CMD][EBV长度][data][CRC]。
+    /// 找不到 0x1F 起始符时不清空缓冲区，保留数据等待后续通知补充。
+    /// </summary>
+    private static byte[]? TryExtractProtocolFrame(List<byte> buffer)
+    {
+        int startIdx = -1;
+        for (int i = 0; i < buffer.Count; i++)
+        {
+            if (buffer[i] == 0x1F) { startIdx = i; break; }
+        }
+        if (startIdx < 0) return null;
+        if (startIdx > 0) buffer.RemoveRange(0, startIdx);
+
+        if (buffer.Count < 4) return null;
+
+        int dataOffset;
+        int dataLength;
+        if (buffer[2] >= 192)
+        {
+            if (buffer.Count < 5) return null;
+            dataLength = ((buffer[2] & 0x3F) << 8) | buffer[3];
+            dataOffset = 4;
+        }
+        else
+        {
+            dataLength = buffer[2];
+            dataOffset = 3;
+        }
+
+        int totalLength = dataOffset + dataLength + 1;
+        if (buffer.Count < totalLength) return null;
+
+        var frame = buffer.GetRange(0, totalLength).ToArray();
+        buffer.RemoveRange(0, totalLength);
+        return frame;
     }
 
     private void SetState(Transport.ConnectionState state, string? msg = null)
