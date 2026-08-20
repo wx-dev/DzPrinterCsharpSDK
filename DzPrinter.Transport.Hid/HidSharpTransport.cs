@@ -423,7 +423,7 @@ public sealed class HidSharpTransport : Transport.TransportBase
 
     private static string? SafeGetName(HidDevice d)
     {
-        try { return d.GetManufacturer() + " " + d.GetProductName(); }
+        try { return d.GetProductName(); }
         catch { return null; }
     }
 }

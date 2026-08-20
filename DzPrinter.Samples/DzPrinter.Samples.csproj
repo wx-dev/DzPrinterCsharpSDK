@@ -8,8 +8,9 @@
     <RootNamespace>DzPrinter.Samples</RootNamespace>
     <AssemblyName>DzPrinter.Samples</AssemblyName>
     <!--
-      示例项目需要同时引用 BLE(WinRT) 和 HID(HidSharp) 两个 Windows 传输层。
-      目标框架取 net8.0-windows10.0.19041.0 以满足 WinRT 依赖。
+      示例项目需要同时引用 BLE(跨平台 BleXPlat) 和 HID(HidSharp) 两个 Windows 传输层。
+      目标框架取 net8.0-windows10.0.19041.0 以满足 WinRT/Plugin.BLE 依赖。
+      注：原 DzPrinter.Transport.Ble（WinRT 直连实现）项目暂保留不删除，待跨平台验证完成后清理。
     -->
   </PropertyGroup>
 
@@ -21,7 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
-    <ProjectReference Include="..\DzPrinter.Transport.Ble\DzPrinter.Transport.Ble.csproj" />
+    <ProjectReference Include="..\DzPrinter.Transport.BleXPlat\DzPrinter.Transport.BleXPlat.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport.Hid\DzPrinter.Transport.Hid.csproj" />
     <ProjectReference Include="..\DzPrinter.Transport.File\DzPrinter.Transport.File.csproj" />
     <ProjectReference Include="..\DzPrinter.Drawing\DzPrinter.Drawing.csproj" />

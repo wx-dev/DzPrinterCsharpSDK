@@ -7,7 +7,7 @@
   <Project Path="DzPrinter.Printer/DzPrinter.Printer.csproj" />
   <Project Path="DzPrinter.Samples/DzPrinter.Samples.csproj" />
   <Project Path="DzPrinter.Tests/DzPrinter.Tests.csproj" />
-  <Project Path="DzPrinter.Transport.Ble/DzPrinter.Transport.Ble.csproj" />
+  <Project Path="DzPrinter.Transport.BleXPlat/DzPrinter.Transport.BleXPlat.csproj" />
   <Project Path="DzPrinter.Transport.Hid/DzPrinter.Transport.Hid.csproj" />
   <Project Path="DzPrinter.Transport.File/DzPrinter.Transport.File.csproj" />
   <Project Path="DzPrinter.Transport/DzPrinter.Transport.csproj" />

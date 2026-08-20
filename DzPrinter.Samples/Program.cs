@@ -20,7 +20,7 @@ using DzPrinter.Drawing;
 using DzPrinter.Jobs;
 using DzPrinter.Printer;
 using DzPrinter.Transport;
-using DzPrinter.Transport.Ble;
+using DzPrinter.Transport.BleXPlat;
 using DzPrinter.Transport.File;
 using DzPrinter.Transport.Hid;
 using SkiaSharp;
@@ -70,7 +70,7 @@ static async Task RunInfoSampleAsync(string transportMode, string label, bool pr
 {
     IDeviceTransport transport = transportMode switch
     {
-        "ble" => new WinRtBleTransport(new BleTransportOptions
+        "ble" => new BleXPlatTransport(new BleXPlatTransportOptions
         {
             ServiceUuid = new Guid("000018F0-0000-1000-8000-00805F9B34FB"),
             PackSize = 20,
@@ -369,8 +369,8 @@ static void DrawInfoLabel(PrinterCanvasMm canvas, string label,
 // =====================================================================
 static async Task RunBleSampleAsync()
 {
-    Console.WriteLine("[BLE] 创建 WinRtBleTransport ...");
-    using var transport = new WinRtBleTransport(new BleTransportOptions
+    Console.WriteLine("[BLE] 创建 BleXPlatTransport ...");
+    using var transport = new BleXPlatTransport(new BleXPlatTransportOptions
     {
         ServiceUuid = new Guid("000018F0-0000-1000-8000-00805F9B34FB"),
         PackSize = 20,         // MTU=23 - 3字节ATT头
@@ -551,7 +551,7 @@ static async Task PrintWithFileTransportAsync(
 static async Task ListDevicesAsync()
 {
     Console.WriteLine("--- BLE 设备 ---");
-    using var bleTransport = new WinRtBleTransport(new BleTransportOptions { ScanTimeoutMs = 5000 });
+    using var bleTransport = new BleXPlatTransport(new BleXPlatTransportOptions { ScanTimeoutMs = 5000 });
     await ListFromTransportAsync(bleTransport);
 
     Console.WriteLine();
