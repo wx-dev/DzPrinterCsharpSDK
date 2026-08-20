@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DzPrinter.Transport.BleXPlat</RootNamespace>
+    <AssemblyName>DzPrinter.Transport.BleXPlat</AssemblyName>
+    <!--
+      跨平台 BLE 传输实现（基于 Plugin.BLE / dotnet-bluetooth-le）。
+      底层 Plugin.BLE 在 Windows 走 WinRT，Linux 走 BlueZ D-Bus，macOS 走 CoreBluetooth。
+      本项目与 DzPrinter.Transport.Ble（WinRT 原生实现）并存，验证通过后移除旧项目。
+      首期仅 Windows 验证；后续扩展 Linux/macOS 时无需改动业务代码。
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Plugin.BLE" Version="3.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+  </ItemGroup>
+
+</Project>
