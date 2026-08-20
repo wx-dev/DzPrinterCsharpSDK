@@ -12,7 +12,7 @@ namespace DzPrinter.Printer;
 //   - JS 通过 uni-app 的 <c>uni.createBLEConnection</c>/<c>uni.writeBLECharacteristicValue</c>
 //     等接口直接操作蓝牙；C# 中将这些平台相关操作抽象为 <see cref="IDeviceTransport"/>，
 //     由宿主应用注入具体实现（WinRT BLE / CoreBluetooth / HidSharp 等）。
-//   - 本类负责：连接状态机、设备信息缓存、事件分发、协议层数据收发协调。
+//   - 本类负责：连接状态机、设备信息缓存、事件分发、数据收发协调。
 //   - 事件命名与 JS 一致："deviceConnect"/"deviceDisconnect"/"deviceFound"/"dataReceived"
 //     等，便于上层对照。
 // =====================================================================

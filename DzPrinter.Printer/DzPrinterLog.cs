@@ -3,10 +3,10 @@ using DzPrinter.Core;
 namespace DzPrinter.Printer;
 
 /// <summary>
-/// 协议层日志桥接：将 <see cref="DzLogger"/> 的日志包装为带模块前缀的输出。
+/// 日志桥接：将 <see cref="DzLogger"/> 的日志包装为带模块前缀的输出。
 /// 所有日志最终走 <see cref="DzLogger"/>，上层可统一接管。
 /// </summary>
-internal static class DzProtocolLog
+internal static class DzPrinterLog
 {
     private const string Prefix = "DzPrinter.Printer";
 

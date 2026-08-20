@@ -74,7 +74,7 @@ public sealed class PackageBuffer
         var n = end - start;
         if (n > _buffer.Length - _bufLen)
         {
-            DzProtocolLog.Warn("---- PackageBuffer缓存不够！");
+            DzPrinterLog.Warn("---- PackageBuffer缓存不够！");
             return false;
         }
         data.Slice(start, n).CopyTo(_buffer.AsSpan(_bufLen));

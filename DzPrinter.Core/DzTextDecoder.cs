@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DzPrinter.Printer;
+namespace DzPrinter.Core;
 
 /// <summary>
 /// 文本解码器。对应 JS SDK 中的 <c>DzTextDecoder</c> 类。

@@ -14,7 +14,7 @@ using DzPrinter.Jobs;
 using DzPrinter.Printer;
 using DzPrinter.Tests.Infrastructure;
 
-namespace DzPrinter.Tests.Protocol;
+namespace DzPrinter.Tests.Printer.Protocol;
 
 #region 1. LPAPI 路径协议帧头断言
 public class LpApiProtocolHeaderTests
@@ -35,12 +35,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_FirstFrame_StartsWithHostToDeviceDataStart()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 
@@ -54,12 +54,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_FirstFrame_SecondByteIsCmdPageStart()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 
@@ -72,12 +72,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_FirstFrame_PageStartFrameHasCorrectLayout()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 
@@ -97,12 +97,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_FirstFrame_ContainsCmdPageWidthAfterPageStart()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 
@@ -117,12 +117,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_LastFrame_EndsWithPageEndByte()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 
@@ -134,12 +134,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_AllFramesAreNonEmpty()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 
@@ -150,12 +150,12 @@ public class LpApiProtocolHeaderTests
     public async Task SentFrames_TotalByteCount_IsPositive()
     {
         var api = CreateLpApi(out var transport);
-        await api.ConnectAsync(new PrinterDevice
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(new PrinterDevice
         {
             DeviceId = "001122",
             Name = "P2-SDK",
             DeviceType = LpaDeviceType.Ble,
-        });
+        }));
         api.CreateCanvas(60, 40);
         await api.PrintAsync();
 

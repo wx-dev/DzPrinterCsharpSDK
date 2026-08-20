@@ -39,25 +39,19 @@ public sealed class HidTransportOptions
 /// Windows HID <see cref="IDeviceTransport"/> 实现。
 /// 对应 JS 中 WebHID 适配器。
 /// </summary>
-public sealed class HidSharpTransport : IDeviceTransport, IDisposable
+public sealed class HidSharpTransport : Transport.TransportBase
 {
     private static readonly ILogger Log = DzLogger.Current;
 
     private readonly HidTransportOptions _options;
-    private readonly object _sync = new();
     private HidDevice? _hidDevice;
     private HidStream? _hidStream;
     private byte _detectedReportId;
     private Thread? _readThread;
     private CancellationTokenSource? _readCts;
-    private Transport.ConnectionState _state = Transport.ConnectionState.Disconnected;
-    private Transport.DeviceInfo? _connected;
 
     // 字段替换
     private readonly ConcurrentQueue<byte> _readBuffer = new();
-    private TaskCompletionSource<byte[]>? _pendingResponse;
-    // 响应累积缓冲区：HID 读取可能分片返回，需累积到完整协议帧再交付
-    private readonly List<byte> _responseBuffer = new();
 
     public HidSharpTransport() : this(new HidTransportOptions()) { }
 
@@ -66,20 +60,10 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         _options = options ?? new HidTransportOptions();
     }
 
-    public Transport.ConnectionState State
-    {
-        get { lock (_sync) return _state; }
-    }
+    /// <inheritdoc />
+    public override Transport.TransportType TransportType => Transport.TransportType.HidUsb;
 
-    public Transport.DeviceInfo? ConnectedDevice
-    {
-        get { lock (_sync) return _connected; }
-    }
-
-    public event EventHandler<Transport.DataReceivedEventArgs>? DataReceived;
-    public event EventHandler<Transport.ConnectionStateChangedEventArgs>? ConnectionStateChanged;
-
-    public Task<IReadOnlyList<Transport.DeviceInfo>> DiscoverAsync(
+    public override Task<IReadOnlyList<Transport.DeviceInfo>> DiscoverAsync(
         CancellationToken cancellationToken = default)
     {
         Log.Info("【HidSharpTransport】DiscoverAsync()");
@@ -111,7 +95,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         return Task.FromResult<IReadOnlyList<Transport.DeviceInfo>>(list);
     }
 
-    public Task ConnectAsync(Transport.DeviceInfo device,
+    public override Task ConnectAsync(Transport.DeviceInfo device,
         CancellationToken cancellationToken = default)
     {
         if (device == null) throw new ArgumentNullException(nameof(device));
@@ -162,7 +146,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
             {
                 _hidDevice = hid;
                 _hidStream = stream;
-                _connected = device;
+                _connectedDevice = device;
             }
 
             _readCts = new CancellationTokenSource();
@@ -181,7 +165,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         }
     }
 
-    public Task DisconnectAsync(CancellationToken cancellationToken = default)
+    public override Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         SetState(Transport.ConnectionState.Disconnecting);
         try
@@ -193,7 +177,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                 _hidStream?.Dispose();
                 _hidStream = null;
                 _hidDevice = null;
-                _connected = null;
+                _connectedDevice = null;
             }
             _readCts?.Dispose();
             _readCts = null;
@@ -205,7 +189,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         return Task.CompletedTask;
     }
 
-    public async Task SendAsync(ReadOnlyMemory<byte> data,
+    public override async Task SendAsync(ReadOnlyMemory<byte> data,
         CancellationToken cancellationToken = default)
     {
         HidStream? stream;
@@ -263,56 +247,18 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         Log.Info($"【HID TX】发送完成: {frameNum} 帧, {data.Length} 字节");
     }
 
-    public Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
+    public override async Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
         CancellationToken cancellationToken = default)
-        => RequestAsyncImpl(data, timeoutMs, cancellationToken);
-
-    private async Task<byte[]?> RequestAsyncImpl(ReadOnlyMemory<byte> data, int timeoutMs,
-        CancellationToken cancellationToken)
     {
-        var tcs = new TaskCompletionSource<byte[]>();
-
-        lock (_sync)
-        {
-            _readBuffer.Clear();
-            _responseBuffer.Clear();
-            _pendingResponse = tcs;
-        }
-
-        Console.WriteLine($"[HID TX] {data.Length} bytes: {BitConverter.ToString(data.Span.ToArray())}");
-
-        await SendAsync(data, cancellationToken).ConfigureAwait(false);
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.Token.Register(() =>
-        {
-            byte[]? rawData = null;
-            lock (_sync)
-            {
-                if (_responseBuffer.Count > 0)
-                {
-                    rawData = _responseBuffer.ToArray();
-                    _responseBuffer.Clear();
-                }
-            }
-            tcs.TrySetResult(rawData ?? Array.Empty<byte>());
-        });
-        cts.CancelAfter(timeoutMs);
-
-        var result = await tcs.Task.ConfigureAwait(false);
-
-        lock (_sync)
-        {
-            _pendingResponse = null;
-            _responseBuffer.Clear();
-        }
-        return result.Length == 0 ? null : result;
+        Console.WriteLine($"[HID TX] {data.Length} bytes: {ByteUtils.ToHexString(data.Span)}");
+        return await RequestAsyncCore(data, timeoutMs, cancellationToken, SendAsync).ConfigureAwait(false);
     }
 
-    public void Dispose()
-    {
-        try { DisconnectAsync().GetAwaiter().GetResult(); } catch { /* 忽略 */ }
-    }
+    /// <summary>
+    /// 清理 HID 特有读取缓冲区（在 RequestAsyncCore 设置 _pendingResponse 后、发送前调用，
+    /// 已持有 _sync 锁）。对应原始实现中 <c>_readBuffer.Clear()</c>。
+    /// </summary>
+    protected override void PrepareRequestBuffer() => _readBuffer.Clear();
 
     // ============ 私有方法 ============
 
@@ -346,7 +292,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                 var payload = UnwrapUsbTransport(buf, start, n - start);
                 if (payload.Length > 0)
                 {
-                    string hexDump = BitConverter.ToString(payload).Replace("-", " ");
+                    string hexDump = ByteUtils.ToHexString(payload);
                     Console.WriteLine($"[HID RX] {payload.Length} bytes: [{hexDump}]");
 
                     lock (_sync)
@@ -357,7 +303,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                             var frame = TryExtractProtocolFrame(_responseBuffer);
                             if (frame != null)
                             {
-                                Console.WriteLine($"[HID RX] 完整帧: {frame.Length} bytes: {BitConverter.ToString(frame)}");
+                                Console.WriteLine($"[HID RX] 完整帧: {frame.Length} bytes: {ByteUtils.ToHexString(frame)}");
                                 _pendingResponse.TrySetResult(frame);
                                 continue;
                             }
@@ -366,7 +312,7 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
                         }
                         foreach (var b in payload) _readBuffer.Enqueue(b);
                     }
-                    DataReceived?.Invoke(this, new DataReceivedEventArgs(payload));
+                    RaiseDataReceived(payload);
                 }
             }
         }
@@ -374,44 +320,6 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
         {
             Log.Warn($"【HidSharpTransport】ReadLoop exited: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// 从缓冲区提取一个完整的协议帧 [0x1F][CMD][EBV长度][data][CRC]。
-    /// 找不到 0x1F 起始符时不清空缓冲区，保留数据等待后续读取补充。
-    /// </summary>
-    private static byte[]? TryExtractProtocolFrame(List<byte> buffer)
-    {
-        int startIdx = -1;
-        for (int i = 0; i < buffer.Count; i++)
-        {
-            if (buffer[i] == 0x1F) { startIdx = i; break; }
-        }
-        if (startIdx < 0) return null;
-        if (startIdx > 0) buffer.RemoveRange(0, startIdx);
-
-        if (buffer.Count < 4) return null;
-
-        int dataOffset;
-        int dataLength;
-        if (buffer[2] >= 192)
-        {
-            if (buffer.Count < 5) return null;
-            dataLength = ((buffer[2] & 0x3F) << 8) | buffer[3];
-            dataOffset = 4;
-        }
-        else
-        {
-            dataLength = buffer[2];
-            dataOffset = 3;
-        }
-
-        int totalLength = dataOffset + dataLength + 1;
-        if (buffer.Count < totalLength) return null;
-
-        var frame = buffer.GetRange(0, totalLength).ToArray();
-        buffer.RemoveRange(0, totalLength);
-        return frame;
     }
 
     /// <summary>
@@ -517,12 +425,5 @@ public sealed class HidSharpTransport : IDeviceTransport, IDisposable
     {
         try { return d.GetManufacturer() + " " + d.GetProductName(); }
         catch { return null; }
-    }
-
-    private void SetState(Transport.ConnectionState state, string? msg = null)
-    {
-        lock (_sync) _state = state;
-        ConnectionStateChanged?.Invoke(this,
-            new Transport.ConnectionStateChangedEventArgs(state, msg));
     }
 }

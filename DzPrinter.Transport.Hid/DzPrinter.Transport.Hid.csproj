@@ -18,6 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="HidSharp" Version="2.1.0" />
   </ItemGroup>
 

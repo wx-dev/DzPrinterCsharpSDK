@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DzPrinter.Printer;
+namespace DzPrinter.Core;
 
 /// <summary>
 /// GBK 编码/解码工具。对应 JS SDK 中的 <c>GBKUtils</c>（minified: <c>Me</c>）类。

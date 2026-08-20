@@ -39,26 +39,17 @@ public sealed class BleTransportOptions
 /// Windows BLE <see cref="IDeviceTransport"/> 实现。
 /// 对应 JS 中 WebBluetooth 适配器 + BleConnection 底层发送逻辑。
 /// </summary>
-public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
+public sealed class WinRtBleTransport : Transport.TransportBase
 {
     private static readonly ILogger Log = DzLogger.Current;
 
     private readonly BleTransportOptions _options;
-    private readonly object _sync = new();
 
     private BluetoothLEAdvertisementWatcher? _watcher;
     private BluetoothLEDevice? _device;
     private GattDeviceService? _service;
     private GattCharacteristic? _writeChar;
     private GattCharacteristic? _notifyChar;
-
-    private Transport.ConnectionState _state = Transport.ConnectionState.Disconnected;
-    private Transport.DeviceInfo? _connected;
-
-    // 响应等待队列
-    private TaskCompletionSource<byte[]>? _pendingResponse;
-    // 响应累积缓冲区：BLE 通知可能分片到达，需累积到完整协议帧再交付
-    private readonly List<byte> _responseBuffer = new();
 
     public WinRtBleTransport() : this(new BleTransportOptions()) { }
 
@@ -69,22 +60,12 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
 
     // ============ 属性 ============
 
-    public Transport.ConnectionState State
-    {
-        get { lock (_sync) return _state; }
-    }
-
-    public Transport.DeviceInfo? ConnectedDevice
-    {
-        get { lock (_sync) return _connected; }
-    }
-
-    public event EventHandler<Transport.DataReceivedEventArgs>? DataReceived;
-    public event EventHandler<Transport.ConnectionStateChangedEventArgs>? ConnectionStateChanged;
+    /// <inheritdoc />
+    public override Transport.TransportType TransportType => Transport.TransportType.BluetoothLowEnergy;
 
     // ============ 公共方法 ============
 
-    public async Task<IReadOnlyList<Transport.DeviceInfo>> DiscoverAsync(
+    public override async Task<IReadOnlyList<Transport.DeviceInfo>> DiscoverAsync(
         CancellationToken cancellationToken = default)
     {
         Log.Info("【WinRtBleTransport】DiscoverAsync() start");
@@ -143,7 +124,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         return found.Values.ToList();
     }
 
-    public async Task ConnectAsync(Transport.DeviceInfo device,
+    public override async Task ConnectAsync(Transport.DeviceInfo device,
         CancellationToken cancellationToken = default)
     {
         if (device == null) throw new ArgumentNullException(nameof(device));
@@ -286,7 +267,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
                 _service = service;
                 _writeChar = writeChar;
                 _notifyChar = notifyChar;
-                _connected = device;
+                _connectedDevice = device;
             }
 
             SetState(Transport.ConnectionState.Connected);
@@ -300,7 +281,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         }
     }
 
-    public async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    public override async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         SetState(Transport.ConnectionState.Disconnecting);
         try
@@ -314,7 +295,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
                 _service = null;
                 _device?.Dispose();
                 _device = null;
-                _connected = null;
+                _connectedDevice = null;
             }
         }
         finally
@@ -324,7 +305,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         await Task.CompletedTask.ConfigureAwait(false);
     }
 
-    public async Task SendAsync(ReadOnlyMemory<byte> data,
+    public override async Task SendAsync(ReadOnlyMemory<byte> data,
         CancellationToken cancellationToken = default)
     {
         GattCharacteristic? writeChar;
@@ -339,7 +320,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
             var slice = data.Slice(sent, len);
 
             // 【新增】打印当前分包的十六进制数组，方便排查协议数据
-            string hexDump = BitConverter.ToString(slice.Span.ToArray()).Replace("-", " ");
+            string hexDump = ByteUtils.ToHexString(slice.Span);
             Console.WriteLine($"[BLE TX] 偏移={sent}, 长度={len}, 数据=[{hexDump}]");
 
             using var writer = new DataWriter();
@@ -354,57 +335,6 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         }
     }
 
-    public Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
-        CancellationToken cancellationToken = default)
-    {
-        // 简化实现：发送后等待 timeoutMs 内积累的 notify 数据。
-        return RequestAsyncImpl(data, timeoutMs, cancellationToken);
-    }
-
-    private async Task<byte[]?> RequestAsyncImpl(ReadOnlyMemory<byte> data, int timeoutMs,
-        CancellationToken cancellationToken)
-    {
-        var tcs = new TaskCompletionSource<byte[]>();
-
-        lock (_sync)
-        {
-            _responseBuffer.Clear();
-            _pendingResponse = tcs;
-        }
-
-        await SendAsync(data, cancellationToken).ConfigureAwait(false);
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.Token.Register(() =>
-        {
-            byte[]? rawData = null;
-            lock (_sync)
-            {
-                if (_responseBuffer.Count > 0)
-                {
-                    rawData = _responseBuffer.ToArray();
-                    _responseBuffer.Clear();
-                }
-            }
-            tcs.TrySetResult(rawData ?? Array.Empty<byte>());
-        });
-        cts.CancelAfter(timeoutMs);
-
-        var result = await tcs.Task.ConfigureAwait(false);
-
-        lock (_sync)
-        {
-            _pendingResponse = null;
-            _responseBuffer.Clear();
-        }
-        return result.Length == 0 ? null : result;
-    }
-
-    public void Dispose()
-    {
-        try { DisconnectAsync().GetAwaiter().GetResult(); } catch { /* 忽略 */ }
-    }
-
     // ============ 私有方法 ============
 
     private void OnNotifyValueChanged(GattCharacteristic s, GattValueChangedEventArgs a)
@@ -413,7 +343,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
         var bytes = new byte[reader.UnconsumedBufferLength];
         reader.ReadBytes(bytes);
 
-        string hexDump = BitConverter.ToString(bytes).Replace("-", " ");
+        string hexDump = ByteUtils.ToHexString(bytes);
         Console.WriteLine($"[BLE RX] {bytes.Length} bytes: [{hexDump}]");
 
         lock (_sync)
@@ -424,7 +354,7 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
                 var frame = TryExtractProtocolFrame(_responseBuffer);
                 if (frame != null)
                 {
-                    Console.WriteLine($"[BLE RX] 完整帧: {frame.Length} bytes: {BitConverter.ToString(frame)}");
+                    Console.WriteLine($"[BLE RX] 完整帧: {frame.Length} bytes: {ByteUtils.ToHexString(frame)}");
                     _pendingResponse.TrySetResult(frame);
                     return;
                 }
@@ -433,51 +363,6 @@ public sealed class WinRtBleTransport : IDeviceTransport, IDisposable
             }
         }
 
-        DataReceived?.Invoke(this, new DataReceivedEventArgs(bytes));
-    }
-
-    /// <summary>
-    /// 从缓冲区提取一个完整的协议帧 [0x1F][CMD][EBV长度][data][CRC]。
-    /// 找不到 0x1F 起始符时不清空缓冲区，保留数据等待后续通知补充。
-    /// </summary>
-    private static byte[]? TryExtractProtocolFrame(List<byte> buffer)
-    {
-        int startIdx = -1;
-        for (int i = 0; i < buffer.Count; i++)
-        {
-            if (buffer[i] == 0x1F) { startIdx = i; break; }
-        }
-        if (startIdx < 0) return null;
-        if (startIdx > 0) buffer.RemoveRange(0, startIdx);
-
-        if (buffer.Count < 4) return null;
-
-        int dataOffset;
-        int dataLength;
-        if (buffer[2] >= 192)
-        {
-            if (buffer.Count < 5) return null;
-            dataLength = ((buffer[2] & 0x3F) << 8) | buffer[3];
-            dataOffset = 4;
-        }
-        else
-        {
-            dataLength = buffer[2];
-            dataOffset = 3;
-        }
-
-        int totalLength = dataOffset + dataLength + 1;
-        if (buffer.Count < totalLength) return null;
-
-        var frame = buffer.GetRange(0, totalLength).ToArray();
-        buffer.RemoveRange(0, totalLength);
-        return frame;
-    }
-
-    private void SetState(Transport.ConnectionState state, string? msg = null)
-    {
-        lock (_sync) _state = state;
-        ConnectionStateChanged?.Invoke(this,
-            new Transport.ConnectionStateChangedEventArgs(state, msg));
+        RaiseDataReceived(bytes);
     }
 }

@@ -9,9 +9,15 @@
     <AssemblyName>DzPrinter.Core</AssemblyName>
     <!--
       Core 模块：DzPrinter 类库的公共基础。
-      包含日志抽象、字节工具、打印机状态辅助等跨模块共享定义。
+      包含日志抽象、字节工具、打印机状态辅助、文本编码工具（GBK/UTF8/ASCII）、
+      通用事件发射器等跨模块共享定义。
       本模块不引用任何其他 DzPrinter 模块，避免循环依赖。
     -->
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- GBK 编码跨平台支持（GbkUtils/DzTextEncoder/DzTextDecoder 使用） -->
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
 
 </Project>

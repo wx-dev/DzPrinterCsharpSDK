@@ -213,21 +213,7 @@ public enum PrintStatus : byte
 }
 
 /// <summary>
-/// 打印对齐方式（由 <see cref="SoftwareFlags"/> 对齐位映射而来）。
-/// 原 JS 中以 <c>Te=1024</c>(左)、<c>Oe=1536</c>(掩码)、<c>512</c>(居中) 表示。
-/// </summary>
-public enum PrintAlignment : byte
-{
-    /// <summary>右对齐（默认）。</summary>
-    Right = 0,
-    /// <summary>居中对齐。</summary>
-    Center = 2,
-    /// <summary>左对齐。</summary>
-    Left = 4,
-}
-
-/// <summary>
-/// 协议层静态常量集合（对应 JS 中分散在 <c>be</c> / <c>Se</c> / <c>xe</c> 上的静态字段）。
+/// 打印机静态常量集合（对应 JS 中分散在 <c>be</c> / <c>Se</c> / <c>xe</c> 上的静态字段）。
 /// </summary>
 public static class ProtocolConstants
 {

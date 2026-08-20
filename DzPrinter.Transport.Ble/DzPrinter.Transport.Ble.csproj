@@ -18,4 +18,8 @@
     <ProjectReference Include="..\DzPrinter.Transport\DzPrinter.Transport.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DzPrinter.Core\DzPrinter.Core.csproj" />
+  </ItemGroup>
+
 </Project>

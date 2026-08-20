@@ -9,11 +9,11 @@
     <AssemblyName>DzPrinter.Printer</AssemblyName>
     <!--
       打印机模块（含协议编码）。对应 JS SDK 中以下类的功能：
-        - 枚举：LPA_DeviceType/PrintStatus/DataSendMode/LPA_DeviceConnectType/
-               LPA_GattProperty/CharacteristicProperty/ValueType/LPA_JobAction/
-               LPA_JobName/LPA_Result/PrinterStatusCode/LPA_GapType/LPA_PrintSpeed/
-               LPA_PrintDarkness/Barcode2DType/DrawType/BarcodeType
-        - 工具：GBKUtils/DzTextEncoder/DzTextDecoder/LPAUtils/Ie(DzUtil)
+        - 枚举：LPA_DeviceType/PrintStatus/DataSendMode/LPA_Result/
+               PrinterStatusCode/LpaGapType/LpaPrintSpeed/LpaPrintDarkness/DrawType
+               （BarcodeType/TwoDBarcodeKind 已统一到 DzPrinter.Barcode 层）
+        - 工具：LPAUtils/DzPrinterLog/DzPrinter(静态)/Ie(DzUtil)
+               （GBKUtils/DzTextEncoder/DzTextDecoder/LPAEmitter 已下沉到 DzPrinter.Core 层）
         - 连接：DeviceConnection/BleConnection/DeviceManager
         - 核心：LPAPI/LPAPIFactory/DzPrinter
         - 标签：WdfxParser/LabelContext

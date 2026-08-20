@@ -1,4 +1,4 @@
-namespace DzPrinter.Printer;
+namespace DzPrinter.Core;
 
 /// <summary>
 /// 简单的事件发射器。对应 JS SDK 中的 <c>LPAEmitter</c>（minified: <c>Ne</c>）类。

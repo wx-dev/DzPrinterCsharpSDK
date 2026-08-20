@@ -108,15 +108,12 @@ public sealed class FileTransportOptions
 ///   <item>重放：捕获的原始数据可重新发送到真实打印机</item>
 /// </list>
 /// </remarks>
-public sealed class FileTransport : IDeviceTransport, IDisposable
+public sealed class FileTransport : TransportBase
 {
     private static readonly ILogger Log = DzLogger.Current;
 
-    private readonly object _sync = new();
     private readonly FileTransportOptions _options;
 
-    private ConnectionState _state = ConnectionState.Disconnected;
-    private DeviceInfo? _connected;
     private FileStream? _fileStream;
     private string _actualPath = string.Empty;
 
@@ -160,20 +157,10 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     /// </summary>
     public string? ActualPngPath { get; private set; }
 
-    // ============ IDeviceTransport 属性 ============
+    // ============ TransportBase 抽象成员 ============
 
-    public ConnectionState State
-    {
-        get { lock (_sync) return _state; }
-    }
-
-    public DeviceInfo? ConnectedDevice
-    {
-        get { lock (_sync) return _connected; }
-    }
-
-    public event EventHandler<DataReceivedEventArgs>? DataReceived;
-    public event EventHandler<ConnectionStateChangedEventArgs>? ConnectionStateChanged;
+    /// <inheritdoc />
+    public override TransportType TransportType => TransportType.File;
 
     // ============ IDeviceTransport 方法 ============
 
@@ -181,7 +168,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     /// 发现虚拟文件打印机设备。返回单个虚拟设备，设备名以 D60 前缀开头
     /// 以便通过 SupportPrinterMatcher 过滤。
     /// </summary>
-    public Task<IReadOnlyList<DeviceInfo>> DiscoverAsync(CancellationToken cancellationToken = default)
+    public override Task<IReadOnlyList<DeviceInfo>> DiscoverAsync(CancellationToken cancellationToken = default)
     {
         var device = new DeviceInfo
         {
@@ -203,7 +190,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     /// <summary>
     /// 连接到虚拟设备 = 打开/创建输出文件。
     /// </summary>
-    public async Task ConnectAsync(DeviceInfo device, CancellationToken cancellationToken = default)
+    public override async Task ConnectAsync(DeviceInfo device, CancellationToken cancellationToken = default)
     {
         if (device == null) throw new ArgumentNullException(nameof(device));
 
@@ -244,7 +231,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
             lock (_sync)
             {
                 _actualPath = path;
-                _connected = device;
+                _connectedDevice = device;
             }
             Log.Info($"【FileTransport】ConnectAsync() —— 输出文件: {path}, 格式: {_options.Format}");
             SetState(ConnectionState.Connected);
@@ -262,7 +249,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     /// <summary>
     /// 断开连接 = 关闭文件。若 SavePngPreview=true，同时生成 PNG 预览。
     /// </summary>
-    public async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    public override async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         SetState(ConnectionState.Disconnecting);
         await Task.Yield();
@@ -290,7 +277,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
                 _capturedRaw.Dispose();
                 _capturedRaw = null;
             }
-            _connected = null;
+            _connectedDevice = null;
         }
 
         // 生成 PNG（在锁外，避免 IO 阻塞）
@@ -336,7 +323,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     /// <summary>
     /// 发送数据 = 写入文件。
     /// </summary>
-    public async Task SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+    public override async Task SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
     {
         if (State != ConnectionState.Connected)
             throw new InvalidOperationException("FileTransport 未连接");
@@ -373,7 +360,12 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     /// 发送数据并返回模拟响应。
     /// 握手帧（CMD_HANDSHAKE）返回伪造的成功响应，其他返回 null。
     /// </summary>
-    public async Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
+    /// <remarks>
+    /// FileTransport 不复用 <see cref="TransportBase.RequestAsyncCore"/>，
+    /// 因其请求-响应模式为同步模拟（写文件 + 立即构造 mock 响应），
+    /// 与 BLE/HID 的"发送 + 累积分片 + 超时 + 帧提取"模式不同。
+    /// </remarks>
+    public override async Task<byte[]?> RequestAsync(ReadOnlyMemory<byte> data, int timeoutMs = 2000,
         CancellationToken cancellationToken = default)
     {
         await SendAsync(data, cancellationToken).ConfigureAwait(false);
@@ -399,12 +391,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
     public void Receive(byte[] payload)
     {
         if (payload == null) throw new ArgumentNullException(nameof(payload));
-        DataReceived?.Invoke(this, new DataReceivedEventArgs(payload));
-    }
-
-    public void Dispose()
-    {
-        try { DisconnectAsync().GetAwaiter().GetResult(); } catch { /* 忽略 */ }
+        RaiseDataReceived(payload);
     }
 
     // ============ 私有方法 ============
@@ -441,11 +428,7 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
         sb.Append("] ");
         sb.Append(data.Length.ToString());
         sb.Append(" bytes: ");
-        for (var i = 0; i < data.Length; i++)
-        {
-            if (i > 0) sb.Append(' ');
-            sb.Append(data[i].ToString("X2"));
-        }
+        sb.Append(ByteUtils.ToHexString(data));
         sb.Append("\r\n");
         return sb.ToString();
     }
@@ -465,11 +448,5 @@ public sealed class FileTransport : IDeviceTransport, IDisposable
         result[2] = 0;    // 0 字节 payload
         result[3] = 0x88; // CRC (与控制帧一致)
         return result;
-    }
-
-    private void SetState(ConnectionState state, string? msg = null)
-    {
-        lock (_sync) _state = state;
-        ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs(state, msg));
     }
 }

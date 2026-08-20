@@ -189,7 +189,7 @@ public class DzPrinterManagerTests
         devices.Should().HaveCount(1);
 
         // 2. 连接
-        await manager.ConnectAsync(devices[0]);
+        Assert.Equal(LpaResult.Ok, await manager.ConnectAsync(devices[0]));
         manager.IsConnected.Should().BeTrue();
         manager.ConnectedDevice.Should().NotBeNull();
 
@@ -257,7 +257,7 @@ public class DzPrinterManagerTests
     {
         var transport = new MockTransport();
         using var manager = new DzPrinterManager(transport);
-        await manager.ConnectAsync(TestDevice());
+        Assert.Equal(LpaResult.Ok, await manager.ConnectAsync(TestDevice()));
 
         var result = await manager.SendRawAsync(new byte[] { 0xAA, 0xBB, 0xCC });
         result.Should().Be(LpaResult.Ok);
@@ -270,7 +270,7 @@ public class DzPrinterManagerTests
     {
         var transport = new MockTransport();
         using var manager = new DzPrinterManager(transport);
-        await manager.ConnectAsync(TestDevice());
+        Assert.Equal(LpaResult.Ok, await manager.ConnectAsync(TestDevice()));
         manager.ConnectedDevice.Should().NotBeNull();
 
         await manager.DisconnectAsync();
@@ -283,7 +283,7 @@ public class DzPrinterManagerTests
     {
         var transport = new MockTransport();
         using var manager = new DzPrinterManager(transport);
-        await manager.ConnectAsync(TestDevice());
+        Assert.Equal(LpaResult.Ok, await manager.ConnectAsync(TestDevice()));
 
         transport.ForceState(ConnectionState.Disconnected);
         manager.ConnectedDevice.Should().BeNull();
@@ -301,7 +301,7 @@ public class DzPrinterManagerTests
     {
         var transport = new MockTransport();
         var manager = new DzPrinterManager(transport);
-        await manager.ConnectAsync(TestDevice());
+        Assert.Equal(LpaResult.Ok, await manager.ConnectAsync(TestDevice()));
 
         manager.Dispose();
         transport.State.Should().Be(ConnectionState.Disconnected);

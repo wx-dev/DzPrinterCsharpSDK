@@ -178,16 +178,16 @@ public sealed class PrintEncoder
         var bytes = EbvHelper.GetBytesFromShort(newPageKey, false);
         first[3] = bytes[0];
         first[4] = bytes[1];
-        DzProtocolLog.Info($"---- updatePageKey: from -> to [{oldKey}] => [{newPageKey}]");
+        DzPrinterLog.Info($"---- updatePageKey: from -> to [{oldKey}] => [{newPageKey}]");
     }
 
     /// <summary>主入口：编码一个打印作业。对应 JS <c>Se.print(t)</c>。</summary>
     public List<byte[]> Print(PrintImageOptions options)
     {
         if (!Start(options)) return new List<byte[]>();
-        DzProtocolLog.Info("---- start to image encode:");
+        DzPrinterLog.Info("---- start to image encode:");
         Encode(options);
-        DzProtocolLog.Info("---- stop to image encode:");
+        DzPrinterLog.Info("---- stop to image encode:");
         return End(options);
     }
 
@@ -231,15 +231,15 @@ public sealed class PrintEncoder
         var img = options.ImageData;
         if (!img.IsValid)
         {
-            DzProtocolLog.Warn("---- PrintPackage.start --> imageData is null or invalid.");
+            DzPrinterLog.Warn("---- PrintPackage.start --> imageData is null or invalid.");
             return false;
         }
 
         Reset(options);
-        DzProtocolLog.Info($"========== startPage pageKey: {options.PageKey} ==========");
-        DzProtocolLog.Info($"---- width: {img.Width}, height: {img.Height}, orientation: {_orientation}");
-        DzProtocolLog.Info($"---- printerDPI: {options.PrinterDpi}, printerWidth: {options.PrinterWidth}");
-        DzProtocolLog.Info($"---- threshold: {options.Threshold}, supportSuperBitmap: {_supportSuperBitmap}");
+        DzPrinterLog.Info($"========== startPage pageKey: {options.PageKey} ==========");
+        DzPrinterLog.Info($"---- width: {img.Width}, height: {img.Height}, orientation: {_orientation}");
+        DzPrinterLog.Info($"---- printerDPI: {options.PrinterDpi}, printerWidth: {options.PrinterWidth}");
+        DzPrinterLog.Info($"---- threshold: {options.Threshold}, supportSuperBitmap: {_supportSuperBitmap}");
 
         var s = new PackageBuffer();
 
@@ -572,8 +572,8 @@ public sealed class PrintEncoder
             var header = new byte[6];
             header[0] = ProtocolConstants.HostToDeviceDataStart;
             header[1] = (byte)PrinterCommand.CMD_BITMAP_PRINT;
-            var hdrLen = WriteEbvInline(header, 2, offset);
-            hdrLen = WriteEbvInline(header, hdrLen, effLen);
+            var hdrLen = EbvHelper.WriteEbv(header, 2, offset);
+            hdrLen = EbvHelper.WriteEbv(header, hdrLen, effLen);
             _bufferList.Push2(header, 0, hdrLen, _lineData, offset, _lineBytes);
         }
 
@@ -597,7 +597,7 @@ public sealed class PrintEncoder
             var header = new byte[4];
             header[0] = ProtocolConstants.HostToDeviceDataStart;
             header[1] = (byte)PrinterCommand.CMD_BITMAP_REPEAT;
-            var hdrLen = WriteEbvInline(header, 2, ProtocolConstants.RepeatLinesPerPacket);
+            var hdrLen = EbvHelper.WriteEbv(header, 2, ProtocolConstants.RepeatLinesPerPacket);
             _bufferList.Push(header, 0, hdrLen);
             count -= ProtocolConstants.RepeatLinesPerPacket + 1;
         }
@@ -606,7 +606,7 @@ public sealed class PrintEncoder
             var header = new byte[4];
             header[0] = ProtocolConstants.HostToDeviceDataStart;
             header[1] = (byte)PrinterCommand.CMD_BITMAP_REPEAT;
-            var hdrLen = WriteEbvInline(header, 2, count - 1);
+            var hdrLen = EbvHelper.WriteEbv(header, 2, count - 1);
             _bufferList.Push(header, 0, hdrLen);
         }
     }
@@ -618,7 +618,7 @@ public sealed class PrintEncoder
         var header = new byte[4]; // [1F, cmd, EBV(len)]，EBV 最坏 2 字节
         header[0] = ProtocolConstants.HostToDeviceDataStart;
         header[1] = (byte)cmd;
-        var hdrLen = WriteEbvInline(header, 2, len);
+        var hdrLen = EbvHelper.WriteEbv(header, 2, len);
         _bufferList.Push2(header, 0, hdrLen, data, 0, len);
     }
 
@@ -629,7 +629,7 @@ public sealed class PrintEncoder
         var header = new byte[4];
         header[0] = ProtocolConstants.HostToDeviceDataStart;
         header[1] = (byte)cmd;
-        var hdrLen = WriteEbvInline(header, 2, codeCount);
+        var hdrLen = EbvHelper.WriteEbv(header, 2, codeCount);
         var packedLen = (5 * codeCount + 7) / 8;
         _bufferList.Push2(header, 0, hdrLen, data, 0, packedLen);
     }
@@ -641,7 +641,7 @@ public sealed class PrintEncoder
         var header = new byte[4];
         header[0] = ProtocolConstants.HostToDeviceDataStart;
         header[1] = (byte)cmd;
-        var hdrLen = WriteEbvInline(header, 2, codeCount);
+        var hdrLen = EbvHelper.WriteEbv(header, 2, codeCount);
         var packedLen = (6 * codeCount + 7) / 8;
         _bufferList.Push2(header, 0, hdrLen, data, 0, packedLen);
     }
@@ -659,19 +659,6 @@ public sealed class PrintEncoder
         if (index + 3 >= data.Length) return 255;
         if (data[index + 3] <= 0) return 255;
         return (19661 * data[index] + 38666 * data[index + 1] + 7209 * data[index + 2]) >> 16;
-    }
-
-    /// <summary>内联 EBV 写入（对应 JS <c>Se.pushEBV(t, e, i)</c>），返回写入后的偏移。</summary>
-    private static int WriteEbvInline(byte[] buffer, int offset, int value)
-    {
-        if (value >= ProtocolConstants.EbvThreshold)
-        {
-            buffer[offset] = (byte)((value >> 8) | 0xC0);
-            buffer[offset + 1] = (byte)(value & 0xFF);
-            return offset + 2;
-        }
-        buffer[offset] = (byte)value;
-        return offset + 1;
     }
 
     private static bool ArrayEquals(byte[] a, byte[] b, int length)

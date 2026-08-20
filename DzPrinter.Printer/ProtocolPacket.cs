@@ -1,3 +1,4 @@
+using DzPrinter.Core;
 using System.Buffers.Binary;
 
 namespace DzPrinter.Printer;
@@ -255,7 +256,7 @@ public sealed class ProtocolPacket
             var calcCrc = EbvHelper.CalcCrc(buffer, 1, len + 4);
             if (receivedCrc != ProtocolConstants.FixedPackageCrcResult && receivedCrc != calcCrc)
             {
-                DzProtocolLog.Warn(
+                DzPrinterLog.Warn(
                     $"---- CRC校验失败：cmd = 0x{(byte)cmd:X2}, receiveCRC = {receivedCrc}, calcCRC = {calcCrc}");
                 return null;
             }
@@ -274,7 +275,7 @@ public sealed class ProtocolPacket
             var calcCrc = EbvHelper.CalcCrc(buffer, 1, len + 3);
             if (receivedCrc != ProtocolConstants.FixedPackageCrcResult && receivedCrc != calcCrc)
             {
-                DzProtocolLog.Warn(
+                DzPrinterLog.Warn(
                     $"---- CRC校验失败：cmd = 0x{(byte)cmd:X2}, receiveCrc = {receivedCrc}, calcCrc = {calcCrc}");
                 return null;
             }

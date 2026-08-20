@@ -216,7 +216,7 @@ public class DeviceManagerTests
         var manager = CreateManagerWithFactory(_ => transport);
 
         var devices = await manager.DiscoverAsync(LpaDeviceType.Ble);
-        await manager.ConnectAsync(devices[0]);
+        (await manager.ConnectAsync(devices[0])).Should().NotBeNull();
         manager.GetActiveConnection()?.IsConnected.Should().BeTrue();
         transport.ConnectCalls.Should().Be(1);
 
@@ -235,7 +235,7 @@ public class DeviceManagerTests
 
         transport.DiscoverDevices = new[] { new DeviceInfo { DeviceId = "x", DeviceName = "P2-1" } };
         var devices = await manager.DiscoverAsync(LpaDeviceType.Ble);
-        await manager.ConnectAsync(devices[0]);
+        (await manager.ConnectAsync(devices[0])).Should().NotBeNull();
         manager.GetActiveConnection()?.IsConnected.Should().BeTrue();
     }
 
@@ -249,7 +249,7 @@ public class DeviceManagerTests
         var manager = CreateManagerWithFactory(_ => transport);
 
         var devices = await manager.DiscoverAsync(LpaDeviceType.Ble);
-        await manager.ConnectAsync(devices[0]);
+        (await manager.ConnectAsync(devices[0])).Should().NotBeNull();
         manager.Dispose();
         transport.State.Should().Be(ConnectionState.Disconnected);
     }
@@ -285,7 +285,7 @@ public class LpApiIntegrationTests
         var api = CreateLpApi(out var transport);
         transport.DiscoverDevices = new[] { new DeviceInfo { DeviceId = "1", DeviceName = "P2-TEST" } };
         var devices = await api.DiscoverAsync(LpaDeviceType.Ble);
-        await api.ConnectAsync(devices[0]);
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(devices[0]));
 
         var result = await api.PrintAsync();
         result.Should().Be(LpaResult.ErrorParam);
@@ -303,7 +303,7 @@ public class LpApiIntegrationTests
             DeviceType = LpaDeviceType.Ble,
             ModelName = "SDK",
         };
-        await api.ConnectAsync(device);
+        Assert.Equal(LpaResult.Ok, await api.ConnectAsync(device));
         api.IsConnected.Should().BeTrue();
 
         var canvas = api.CreateCanvas(widthMm: 60, heightMm: 40, orientation: 0);
