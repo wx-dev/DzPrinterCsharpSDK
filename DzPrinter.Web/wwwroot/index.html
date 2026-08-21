@@ -3,99 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DzPrinter Web API Demo</title>
+    <title>DzPrinter Web 控制台</title>
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-soft: #eff6ff;
+            --accent: #7c3aed;
+            --danger: #dc2626;
+            --danger-dark: #b91c1c;
+            --success: #16a34a;
+            --success-dark: #15803d;
+            --bg: #eef2f7;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --border-soft: #eef2f7;
+            --text: #0f172a;
+            --muted: #64748b;
+            --muted-2: #94a3b8;
+            --r: 12px;
+            --r-sm: 7px;
+            --shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 6px 18px rgba(15, 23, 42, .04);
+            --shadow-lg: 0 10px 32px rgba(15, 23, 42, .1);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
-        h1 { margin-bottom: 20px; }
-        h2 { margin: 20px 0 10px; font-size: 18px; }
-        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        button { padding: 8px 20px; border: none; border-radius: 4px; background: #0066cc; color: #fff; cursor: pointer; font-size: 14px; margin-right: 8px; margin-bottom: 8px; }
-        button:hover { background: #0052a3; }
-        button.danger { background: #c62828; }
-        button.danger:hover { background: #b71c1c; }
-        button.success { background: #2e7d32; }
-        button.success:hover { background: #1b5e20; }
-        input, select, textarea { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;}
-        input[type=number] { width: 80px; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+        .app { max-width: 1340px; margin: 0 auto; padding: 24px 20px 56px; }
+
+        /* ---- 顶栏 ---- */
+        .header {
+            display: flex; align-items: center; gap: 14px;
+            padding: 6px 4px 18px; margin-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .header .logo {
+            width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; font-size: 20px;
+            box-shadow: 0 6px 16px rgba(37, 99, 235, .35);
+        }
+        .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.2px; }
+        .header .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+        /* ---- 两栏布局 ---- */
+        .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+        .main-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .side-col { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 24px; }
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .side-col { position: static; }
+        }
+
+        /* ---- 卡片 ---- */
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--r); padding: 18px 20px; box-shadow: var(--shadow);
+        }
+        .card h2 {
+            font-size: 15px; font-weight: 600; margin: 0 0 14px;
+            display: flex; align-items: center; gap: 9px;
+        }
+        .card h2 .num {
+            width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+            background: var(--primary-soft); color: var(--primary);
+            font-size: 12px; font-weight: 700;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+        /* ---- 表单 ---- */
+        .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 6px; margin-bottom: 8px; }
+        .row:last-child { margin-bottom: 0; }
+        label {
+            font-size: 12px; color: var(--muted); font-weight: 500;
+            white-space: nowrap; display: inline-block;
+            min-width: 56px; text-align: right; padding-right: 4px;
+        }
+        input, select, textarea {
+            padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
+            font-size: 13px; font-family: inherit; background: #fff; color: var(--text);
+            transition: border-color .15s, box-shadow .15s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+        }
+        input[type=number] { width: 84px; }
         input[type=text] { width: 150px; }
-        input[type=checkbox] { width: auto; }
-        textarea { width: 100%; min-height: 60px; }
-        label { display: inline-block; font-size: 13px; color: #666; padding-left: 8px; min-width: 70px; }
-        pre { background: #f8f8f8; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 13px; max-height: 200px; }
-        .row { display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px; }
-        .instructions-list { margin: 10px 0; }
-        .instruction-item { background: #f0f7ff; padding: 12px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #0066cc; }
-        .instruction-item select { width: 160px; }
-        .field-group { background: #f8fcff; padding: 8px; border-radius: 4px; margin: 4px 0; }
-        .field-group-title { font-size: 12px; font-weight: bold; color: #0066cc; margin-bottom: 4px; }
-        #jsonPreview { white-space: pre-wrap; word-break: break-all; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
-        .status-connected { background: #c8e6c9; color: #1b5e20; }
-        .status-disconnected { background: #ffcdd2; color: #b71c1c; }
+        input[type=checkbox] { width: auto; accent-color: var(--primary); transform: translateY(1px); }
+        textarea { width: 100%; min-height: 56px; resize: vertical; }
+
+        /* ---- 按钮 ---- */
+        .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        button {
+            padding: 8px 16px; border: 1px solid transparent; border-radius: var(--r-sm);
+            background: var(--primary); color: #fff; cursor: pointer;
+            font-size: 13px; font-weight: 500; font-family: inherit; white-space: nowrap;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            transition: background .15s, transform .05s, box-shadow .15s;
+        }
+        button:hover { background: var(--primary-dark); }
+        button:active { transform: translateY(1px); }
+        button.secondary { background: #fff; color: var(--primary); border-color: var(--primary); }
+        button.secondary:hover { background: var(--primary-soft); }
+        button.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+        button.ghost:hover { background: #f8fafc; color: var(--text); }
+        button.danger { background: var(--danger); }
+        button.danger:hover { background: var(--danger-dark); }
+        button.success { background: var(--success); box-shadow: 0 4px 12px rgba(22, 163, 74, .3); }
+        button.success:hover { background: var(--success-dark); }
+        button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+        button:disabled:hover { background: var(--primary); }
+        button.danger:disabled:hover { background: var(--danger); }
+        button.success:disabled:hover { background: var(--success); }
+        button.is-busy { opacity: .85; cursor: progress; }
+        button.is-busy::before { content: ''; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: btn-spin .6s linear infinite; flex-shrink: 0; }
+        @keyframes btn-spin { to { transform: rotate(360deg); } }
+
+        /* ---- 绘制指令 ---- */
+        .instructions-list { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+        .instruction-item {
+            background: #fbfdff; border: 1px solid var(--border);
+            border-left: 3px solid var(--primary); border-radius: var(--r-sm); padding: 12px 14px;
+        }
+        .instruction-item > select { width: 170px; }
+        .field-group {
+            background: #f8fafc; border: 1px solid var(--border-soft);
+            border-radius: var(--r-sm); padding: 10px 12px; margin: 8px 0;
+        }
+        .field-group-title {
+            font-size: 11px; font-weight: 600; color: var(--primary);
+            text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px;
+        }
+
+        /* ---- 设备列表 ---- */
+        #deviceList { margin-top: 10px; }
+        #deviceList .row {
+            background: var(--primary-soft); border-radius: var(--r-sm);
+            padding: 8px 12px; margin-bottom: 6px; font-size: 13px;
+        }
+
+        /* ---- 状态徽章 ---- */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+        }
+        .status-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .status-connected { background: #dcfce7; color: #166534; }
+        .status-disconnected { background: #fee2e2; color: #991b1b; }
+
+        /* ---- 预览区 ---- */
+        .preview-wrap {
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            min-height: 160px; justify-content: center;
+        }
+        .preview-wrap .empty { color: var(--muted-2); font-size: 13px; text-align: center; padding: 24px 12px; }
+        #previewImage img {
+            max-width: 100%; border: 1px solid var(--border); border-radius: var(--r-sm);
+            image-rendering: pixelated;
+            background: repeating-conic-gradient(#eef2f7 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+        }
+        #previewStatus { font-size: 12px; color: var(--muted); }
+
+        /* ---- 代码块 ---- */
+        pre {
+            background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: var(--r-sm);
+            overflow-x: auto; font-size: 12px; line-height: 1.55;
+            font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+        }
+        #jsonPreview { max-height: 200px; white-space: pre-wrap; word-break: break-all; }
+        #apiResponse { max-height: 280px; }
+
+        .muted { color: var(--muted); font-size: 13px; }
+        .hint { font-size: 12px; color: var(--muted-2); margin-top: 6px; }
     </style>
 </head>
 <body>
-    <h1>DzPrinter Web API Demo</h1>
+<div class="app">
+    <header class="header">
+        <div class="logo">印</div>
+        <div>
+            <h1>DzPrinter Web 控制台</h1>
+            <div class="sub">设备连接 · 内容设计 · 实时预览</div>
+        </div>
+    </header>
 
-    <div class="card">
-        <h2>1. 设备发现与连接</h2>
-        <div class="row">
-            <label>传输类型</label>
-            <select id="transportType">
-                <option value="file">File (调试)</option>
-                <option value="ble">BLE 蓝牙</option>
-                <option value="hid">HID USB</option>
-            </select>
-            <button onclick="discoverDevices()">发现设备</button>
-            <button onclick="getStatus()">刷新状态</button>
-            <button onclick="disconnectDevice()" class="danger">断开连接</button>
-        </div>
-        <div class="row">
-            <label>连接状态</label>
-            <span id="connStatus" class="status-badge status-disconnected">未连接</span>
-        </div>
-        <div id="deviceList"></div>
+    <div class="layout">
+        <main class="main-col">
+            <section class="card">
+                <h2><span class="num">1</span>设备发现与连接</h2>
+                <div class="row">
+                    <label>传输类型</label>
+                    <select id="transportType">
+                        <option value="file">File (调试)</option>
+                        <option value="ble">BLE 蓝牙</option>
+                        <option value="hid">HID USB</option>
+                    </select>
+                    <div class="btn-row" style="margin:0">
+                        <button id="btnDiscover" onclick="withBusy(this,'搜索中...',discoverDevices)" class="secondary">发现设备</button>
+                        <button id="btnRefreshStatus" onclick="withBusy(this,'查询中...',getStatus)" class="ghost">刷新状态</button>
+                        <button id="btnDisconnect" onclick="withBusy(this,'断开中...',disconnectDevice,120000)" class="danger" disabled>断开连接</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <label>连接状态</label>
+                    <span id="connStatus" class="status-badge status-disconnected">未连接</span>
+                </div>
+                <div id="deviceList"></div>
+            </section>
+
+            <section class="card">
+                <h2><span class="num">2</span>打印内容设计</h2>
+                <div class="row">
+                    <label>画布宽度</label><input type="number" id="widthMm" value="48" step="1">
+                    <label>画布高度</label><input type="number" id="heightMm" value="48" step="1">
+                    <label>份数</label><input type="number" id="pageCount" value="1" step="1">
+                    <label>方向</label>
+                    <select id="orientation">
+                        <option value="0">正常</option>
+                        <option value="1">90°</option>
+                        <option value="2">180°</option>
+                        <option value="3">270°</option>
+                    </select>
+                    <label>纸张类型</label>
+                    <select id="gapType">
+                        <option value="none" selected>连续纸</option>
+                        <option value="gap">间隙标签</option>
+                        <option value="black">黑标</option>
+                        <option value="hole">孔洞</option>
+                        <option value="trans">透明</option>
+                    </select>
+                    <label>间隙长度mm</label><input type="number" id="gapLength" value="0" step="0.1">
+                </div>
+                <div class="instructions-list" id="instructionsList"></div>
+                <div class="btn-row">
+                    <button onclick="addInstruction()" class="secondary">+ 添加绘制指令</button>
+                    <button onclick="buildPrintRequest()" class="ghost">生成 JSON 预览</button>
+                    <button id="btnSendPrint" onclick="withBusy(this,'打印中...',sendPrint)" class="success" disabled>发送打印</button>
+                </div>
+                <div class="divider"></div>
+                <h2 style="margin-bottom:10px">JSON 请求预览</h2>
+                <pre id="jsonPreview">{}</pre>
+            </section>
+        </main>
+
+        <aside class="side-col">
+            <section class="card">
+                <h2><span class="num">3</span>实时预览</h2>
+                <div class="row">
+                    <button id="btnRefreshPreview" onclick="withBusy(this,'预览中...',requestPreview)" class="secondary">刷新预览</button>
+                    <label style="display:flex;align-items:center;min-width:auto"><input type="checkbox" id="autoPreview" checked> 自动预览</label>
+                </div>
+                <div class="preview-wrap">
+                    <div id="previewImage"><p class="empty">修改参数后自动生成预览，或点击"刷新预览"</p></div>
+                    <span id="previewStatus"></span>
+                </div>
+            </section>
+        </aside>
     </div>
 
-    <div class="card">
-        <h2>2. 打印内容设计</h2>
-        <div class="row">
-            <label>画布宽度</label><input type="number" id="widthMm" value="48" step="1">
-            <label>画布高度</label><input type="number" id="heightMm" value="100" step="1">
-            <label>份数</label><input type="number" id="pageCount" value="1" step="1">
-            <label>方向</label>
-            <select id="orientation">
-                <option value="0">正常</option>
-                <option value="1">90°</option>
-                <option value="2">180°</option>
-                <option value="3">270°</option>
-            </select>
-        </div>
-        <div class="instructions-list" id="instructionsList"></div>
-        <div class="row">
-            <button onclick="addInstruction()">+ 添加绘制指令</button>
-            <button onclick="buildPrintRequest()">生成 JSON 预览</button>
-            <button onclick="sendPrint()" class="success">发送打印</button>
-        </div>
-        <h2>JSON 请求预览</h2>
-        <pre id="jsonPreview">{}</pre>
-    </div>
-
-    <div class="card">
-        <h2>3. 实时预览</h2>
-        <div class="row">
-            <button onclick="requestPreview()">刷新预览</button>
-            <label><input type="checkbox" id="autoPreview" checked> 自动预览</label>
-            <span id="previewStatus" style="font-size:12px;color:#999"></span>
-        </div>
-        <div id="previewImage"><p style="color:#999">修改参数后自动生成预览，或点击"刷新预览"</p></div>
-    </div>
-
-    <div class="card">
-        <h2>4. API 响应</h2>
+    <section class="card" style="margin-top:16px">
+        <h2><span class="num">4</span>API 响应</h2>
         <pre id="apiResponse">等待操作...</pre>
-    </div>
+    </section>
+</div>
 
 <script>
 const API = '';
@@ -136,7 +315,7 @@ async function requestPreview() {
         const data = await res.json();
         if (data.success && data.previewBase64) {
             document.getElementById('previewImage').innerHTML =
-                `<img src="data:image/png;base64,${data.previewBase64}" style="border:1px solid #ccc;max-width:300px;image-rendering:pixelated">`;
+                `<img src="data:image/png;base64,${data.previewBase64}">`;
             statusEl.textContent = '预览已更新';
         } else {
             statusEl.textContent = '预览失败';
@@ -158,25 +337,61 @@ async function apiCall(method, path, body) {
     return data;
 }
 
+let isConnected = false;
+
+function updateActionButtons() {
+    const send = document.getElementById('btnSendPrint');
+    if (send && !send.classList.contains('is-busy')) send.disabled = !isConnected;
+    const disc = document.getElementById('btnDisconnect');
+    if (disc && !disc.classList.contains('is-busy')) disc.disabled = !isConnected;
+}
+
+function withBusy(btn, text, fn, timeoutMs) {
+    if (!btn) return Promise.resolve(fn());
+    if (btn.disabled) return Promise.resolve();
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.classList.add('is-busy');
+    btn.textContent = text;
+    let done = false;
+    let timer = null;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        btn.textContent = orig;
+        btn.classList.remove('is-busy');
+        btn.disabled = false;
+        updateActionButtons();
+    };
+    if (timeoutMs && timeoutMs > 0) timer = setTimeout(finish, timeoutMs);
+    return Promise.resolve()
+        .then(fn)
+        .catch(e => { if (!done) { console.error(e); alert('操作失败: ' + (e && e.message ? e.message : e)); } })
+        .then(finish);
+}
+
 async function discoverDevices() {
     const transport = document.getElementById('transportType').value;
     const data = await apiCall('GET', `/api/devices/discover?transport=${transport}`);
     const list = document.getElementById('deviceList');
     if (!data.devices || data.devices.length === 0) {
-        list.innerHTML = '<p>未发现设备</p>';
+        list.innerHTML = '<p class="muted">未发现设备</p>';
         return;
     }
     list.innerHTML = data.devices.map(d => `
         <div class="row">
             <span>${d.name} (${d.modelName}) [${d.deviceType}] RSSI: ${d.rssi}</span>
-            <button onclick="connectDevice('${d.deviceId}')">连接</button>
+            <button onclick="connectDevice('${d.deviceId}', this)">连接</button>
         </div>
     `).join('');
 }
 
-async function connectDevice(deviceId) {
-    const data = await apiCall('POST', '/api/devices/connect', { deviceId });
-    if (data.success) updateStatus(true, data.device);
+async function connectDevice(deviceId, btn) {
+    await withBusy(btn, '连接中...', async () => {
+        const data = await apiCall('POST', '/api/devices/connect', { deviceId });
+        if (data.success) updateStatus(true, data.device);
+    });
 }
 
 async function disconnectDevice() {
@@ -190,9 +405,11 @@ async function getStatus() {
 }
 
 function updateStatus(connected, device) {
+    isConnected = connected;
     const badge = document.getElementById('connStatus');
     badge.textContent = connected ? `已连接: ${device?.name || ''}` : '未连接';
     badge.className = 'status-badge ' + (connected ? 'status-connected' : 'status-disconnected');
+    updateActionButtons();
 }
 
 // ---- 绘制指令管理 ----
@@ -593,6 +810,8 @@ function buildPrintRequest() {
             printerWidth: 384,
             printerDpi: 203,
             pageCount: parseInt(document.getElementById('pageCount').value),
+            gapType: document.getElementById('gapType').value,
+            gapLength: parseFloat(document.getElementById('gapLength').value) || 0,
         },
         instructions: instructions,
     };
@@ -607,7 +826,7 @@ async function sendPrint() {
     if (data.success) {
         const previewDiv = document.getElementById('previewImage');
         if (data.previewBase64) {
-            previewDiv.innerHTML = `<img src="data:image/png;base64,${data.previewBase64}" style="border:1px solid #ccc; max-width:300px; image-rendering:pixelated;">`;
+            previewDiv.innerHTML = `<img src="data:image/png;base64,${data.previewBase64}">`;
         }
         alert(`打印成功! 发送了 ${data.chunksSent} 个数据块`);
     } else {
@@ -617,10 +836,10 @@ async function sendPrint() {
 
 // 初始化
 addInstruction();
-getStatus();
+getStatus().catch(() => updateActionButtons());
 
 // 画布参数变更也触发预览
-['widthMm', 'heightMm', 'orientation', 'pageCount'].forEach(id => {
+['widthMm', 'heightMm', 'orientation', 'pageCount', 'gapType', 'gapLength'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         el.addEventListener('input', schedulePreview);
