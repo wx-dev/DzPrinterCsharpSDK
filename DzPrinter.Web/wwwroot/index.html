@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DzPrinter Web API Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+        h1 { margin-bottom: 20px; }
+        h2 { margin: 20px 0 10px; font-size: 18px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        button { padding: 8px 20px; border: none; border-radius: 4px; background: #0066cc; color: #fff; cursor: pointer; font-size: 14px; margin-right: 8px; margin-bottom: 8px; }
+        button:hover { background: #0052a3; }
+        button.danger { background: #c62828; }
+        button.danger:hover { background: #b71c1c; }
+        button.success { background: #2e7d32; }
+        button.success:hover { background: #1b5e20; }
+        input, select, textarea { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;}
+        input[type=number] { width: 80px; }
+        input[type=text] { width: 150px; }
+        input[type=checkbox] { width: auto; }
+        textarea { width: 100%; min-height: 60px; }
+        label { display: inline-block; font-size: 13px; color: #666; padding-left: 8px; min-width: 70px; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 13px; max-height: 200px; }
+        .row { display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px; }
+        .instructions-list { margin: 10px 0; }
+        .instruction-item { background: #f0f7ff; padding: 12px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #0066cc; }
+        .instruction-item select { width: 160px; }
+        .field-group { background: #f8fcff; padding: 8px; border-radius: 4px; margin: 4px 0; }
+        .field-group-title { font-size: 12px; font-weight: bold; color: #0066cc; margin-bottom: 4px; }
+        #jsonPreview { white-space: pre-wrap; word-break: break-all; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+        .status-connected { background: #c8e6c9; color: #1b5e20; }
+        .status-disconnected { background: #ffcdd2; color: #b71c1c; }
+    </style>
+</head>
+<body>
+    <h1>DzPrinter Web API Demo</h1>
+
+    <div class="card">
+        <h2>1. 设备发现与连接</h2>
+        <div class="row">
+            <label>传输类型</label>
+            <select id="transportType">
+                <option value="file">File (调试)</option>
+                <option value="ble">BLE 蓝牙</option>
+                <option value="hid">HID USB</option>
+            </select>
+            <button onclick="discoverDevices()">发现设备</button>
+            <button onclick="getStatus()">刷新状态</button>
+            <button onclick="disconnectDevice()" class="danger">断开连接</button>
+        </div>
+        <div class="row">
+            <label>连接状态</label>
+            <span id="connStatus" class="status-badge status-disconnected">未连接</span>
+        </div>
+        <div id="deviceList"></div>
+    </div>
+
+    <div class="card">
+        <h2>2. 打印内容设计</h2>
+        <div class="row">
+            <label>画布宽度</label><input type="number" id="widthMm" value="48" step="1">
+            <label>画布高度</label><input type="number" id="heightMm" value="100" step="1">
+            <label>份数</label><input type="number" id="pageCount" value="1" step="1">
+            <label>方向</label>
+            <select id="orientation">
+                <option value="0">正常</option>
+                <option value="1">90°</option>
+                <option value="2">180°</option>
+                <option value="3">270°</option>
+            </select>
+        </div>
+        <div class="instructions-list" id="instructionsList"></div>
+        <div class="row">
+            <button onclick="addInstruction()">+ 添加绘制指令</button>
+            <button onclick="buildPrintRequest()">生成 JSON 预览</button>
+            <button onclick="sendPrint()" class="success">发送打印</button>
+        </div>
+        <h2>JSON 请求预览</h2>
+        <pre id="jsonPreview">{}</pre>
+    </div>
+
+    <div class="card">
+        <h2>3. 实时预览</h2>
+        <div class="row">
+            <button onclick="requestPreview()">刷新预览</button>
+            <label><input type="checkbox" id="autoPreview" checked> 自动预览</label>
+            <span id="previewStatus" style="font-size:12px;color:#999"></span>
+        </div>
+        <div id="previewImage"><p style="color:#999">修改参数后自动生成预览，或点击"刷新预览"</p></div>
+    </div>
+
+    <div class="card">
+        <h2>4. API 响应</h2>
+        <pre id="apiResponse">等待操作...</pre>
+    </div>
+
+<script>
+const API = '';
+
+function showResponse(data) {
+    document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+}
+
+// ---- 实时预览 ----
+
+let previewTimer = null;
+let previewSeq = 0;
+
+function schedulePreview() {
+    if (!document.getElementById('autoPreview').checked) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(requestPreview, 400);
+}
+
+async function requestPreview() {
+    const seq = ++previewSeq;
+    const statusEl = document.getElementById('previewStatus');
+    statusEl.textContent = '生成中...';
+
+    const req = buildPrintRequest();
+    if (!req.instructions || req.instructions.length === 0) {
+        statusEl.textContent = '暂无绘制指令';
+        return;
+    }
+
+    try {
+        const res = await fetch(API + '/api/print/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req),
+        });
+        if (seq !== previewSeq) return; // 过期响应
+        const data = await res.json();
+        if (data.success && data.previewBase64) {
+            document.getElementById('previewImage').innerHTML =
+                `<img src="data:image/png;base64,${data.previewBase64}" style="border:1px solid #ccc;max-width:300px;image-rendering:pixelated">`;
+            statusEl.textContent = '预览已更新';
+        } else {
+            statusEl.textContent = '预览失败';
+        }
+    } catch (e) {
+        if (seq === previewSeq) statusEl.textContent = '请求失败: ' + e.message;
+    }
+}
+
+async function apiCall(method, path, body) {
+    const opts = { method, headers: {} };
+    if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(API + path, opts);
+    const data = await res.json();
+    showResponse(data);
+    return data;
+}
+
+async function discoverDevices() {
+    const transport = document.getElementById('transportType').value;
+    const data = await apiCall('GET', `/api/devices/discover?transport=${transport}`);
+    const list = document.getElementById('deviceList');
+    if (!data.devices || data.devices.length === 0) {
+        list.innerHTML = '<p>未发现设备</p>';
+        return;
+    }
+    list.innerHTML = data.devices.map(d => `
+        <div class="row">
+            <span>${d.name} (${d.modelName}) [${d.deviceType}] RSSI: ${d.rssi}</span>
+            <button onclick="connectDevice('${d.deviceId}')">连接</button>
+        </div>
+    `).join('');
+}
+
+async function connectDevice(deviceId) {
+    const data = await apiCall('POST', '/api/devices/connect', { deviceId });
+    if (data.success) updateStatus(true, data.device);
+}
+
+async function disconnectDevice() {
+    await apiCall('POST', '/api/devices/disconnect');
+    updateStatus(false);
+}
+
+async function getStatus() {
+    const data = await apiCall('GET', '/api/devices/status');
+    updateStatus(data.isConnected, data.device);
+}
+
+function updateStatus(connected, device) {
+    const badge = document.getElementById('connStatus');
+    badge.textContent = connected ? `已连接: ${device?.name || ''}` : '未连接';
+    badge.className = 'status-badge ' + (connected ? 'status-connected' : 'status-disconnected');
+}
+
+// ---- 绘制指令管理 ----
+
+let instructionCount = 0;
+
+function addInstruction() {
+    instructionCount++;
+    const id = instructionCount;
+    const container = document.getElementById('instructionsList');
+    const div = document.createElement('div');
+    div.className = 'instruction-item';
+    div.id = `inst-${id}`;
+    div.innerHTML = `
+        <select onchange="updateInstructionFields(${id})">
+            <option value="drawText">文本</option>
+            <option value="drawRect">矩形</option>
+            <option value="drawRoundRect">圆角矩形</option>
+            <option value="drawLine">直线</option>
+            <option value="drawCircle">圆形</option>
+            <option value="drawEllipse">椭圆</option>
+            <option value="draw1DBarcode">1D条码</option>
+            <option value="draw2DBarcode">2D条码/二维码</option>
+            <option value="drawImage">图片</option>
+        </select>
+        <button onclick="removeInstruction(${id})" class="danger" style="margin-left:8px;padding:4px 12px;font-size:12px">删除</button>
+        <div id="fields-${id}" style="margin-top:8px"></div>
+    `;
+    container.appendChild(div);
+    updateInstructionFields(id);
+    schedulePreview();
+}
+
+function removeInstruction(id) {
+    document.getElementById(`inst-${id}`).remove();
+    schedulePreview();
+}
+
+function commonFields(id) {
+    return `
+        <div class="field-group">
+            <div class="field-group-title">位置与尺寸</div>
+            <div class="row">
+                <label>X(mm)</label><input type="number" id="${id}-x" value="2" step="0.5">
+                <label>Y(mm)</label><input type="number" id="${id}-y" value="2" step="0.5">
+                <label>宽(mm)</label><input type="number" id="${id}-w" value="40" step="0.5">
+                <label>高(mm)</label><input type="number" id="${id}-h" value="10" step="0.5">
+            </div>
+        </div>
+        <div class="field-group">
+            <div class="field-group-title">通用样式</div>
+            <div class="row">
+                <label>前景色</label><input type="text" id="${id}-color" value="" placeholder="#000">
+                <label>背景色</label><input type="text" id="${id}-bgColor" value="" placeholder="留空">
+                <label>旋转角度</label><input type="number" id="${id}-rotation" value="0" step="1">
+                <label>旋转模式</label><select id="${id}-rotateMode">
+                    <option value="">默认</option><option value="auto">自动</option>
+                    <option value="rotateCanvas">旋转画布</option><option value="rotateContent">旋转内容</option>
+                </select>
+            </div>
+        </div>
+    `;
+}
+
+function updateInstructionFields(id) {
+    const type = document.querySelector(`#inst-${id} select`).value;
+    const fieldsDiv = document.getElementById(`fields-${id}`);
+    const common = commonFields(id);
+
+    let extra = '';
+    switch (type) {
+        case 'drawText':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">文本内容</div>
+                    <div class="row"><input type="text" id="${id}-text" value="Hello World" style="width:300px"></div>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">字体</div>
+                    <div class="row">
+                        <label>字号</label><input type="number" id="${id}-fontHeight" value="3" step="0.5">
+                        <label>最小字号</label><input type="number" id="${id}-minFontHeight" value="1" step="0.5">
+                        <label>字体名</label><input type="text" id="${id}-fontName" value="" placeholder="留空=默认" style="width:120px">
+                        <label>样式</label><select id="${id}-fontStyle">
+                            <option value="">正常</option><option value="bold">粗体</option>
+                            <option value="italic">斜体</option><option value="bolditalic">粗斜体</option>
+                            <option value="underline">下划线</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">对齐与换行</div>
+                    <div class="row">
+                        <label>水平</label><select id="${id}-hAlign">
+                            <option value="">默认</option><option value="left">左</option>
+                            <option value="center">中</option><option value="right">右</option><option value="stretch">拉伸</option>
+                        </select>
+                        <label>垂直</label><select id="${id}-vAlign">
+                            <option value="">默认</option><option value="left">上</option>
+                            <option value="center">中</option><option value="right">下</option><option value="stretch">拉伸</option>
+                        </select>
+                        <label>换行</label><select id="${id}-autoReturn">
+                            <option value="">默认</option><option value="none">不换行</option>
+                            <option value="char">按字符</option><option value="word">按词</option>
+                        </select>
+                        <label>自动缩小</label><input type="checkbox" id="${id}-autoShrink">
+                    </div>
+                    <div class="row">
+                        <label>字符间距</label><input type="number" id="${id}-charSpace" value="0" step="0.1">
+                        <label>行间距</label><input type="number" id="${id}-lineSpace" value="0" step="0.1">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'drawRect':
+        case 'drawRoundRect':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">边框与填充</div>
+                    <div class="row">
+                        <label>线宽</label><input type="number" id="${id}-lineWidth" value="0.5" step="0.1">
+                        <label>填充</label><input type="checkbox" id="${id}-fill">
+                        <label>连接</label><select id="${id}-lineJoin">
+                            <option value="">默认</option><option value="miter">尖角</option>
+                            <option value="round">圆角</option><option value="bevel">斜角</option>
+                        </select>
+                        ${type === 'drawRoundRect' ? `<label>圆角半径</label><input type="number" id="${id}-radius" value="2" step="0.5">` : ''}
+                    </div>
+                    <div class="row">
+                        <label>边框对齐</label><select id="${id}-borderAlign">
+                            <option value="">默认</option><option value="none">无</option>
+                            <option value="left">左</option><option value="right">右</option>
+                            <option value="top">上</option><option value="bottom">下</option>
+                            <option value="inner">内框</option><option value="outer">外框</option>
+                        </select>
+                        <label>虚线</label><input type="text" id="${id}-dashLens" value="" placeholder="如: 4,2" style="width:100px">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'drawLine':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">端点</div>
+                    <div class="row">
+                        <label>X1</label><input type="number" id="${id}-x1" value="0" step="0.5">
+                        <label>Y1</label><input type="number" id="${id}-y1" value="0" step="0.5">
+                        <label>X2</label><input type="number" id="${id}-x2" value="40" step="0.5">
+                        <label>Y2</label><input type="number" id="${id}-y2" value="0" step="0.5">
+                    </div>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">线条样式</div>
+                    <div class="row">
+                        <label>线宽</label><input type="number" id="${id}-lineWidth" value="0.5" step="0.1">
+                        <label>虚线</label><input type="text" id="${id}-dashLens" value="" placeholder="如: 4,2" style="width:100px">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'drawCircle':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">圆形</div>
+                    <div class="row">
+                        <label>半径</label><input type="number" id="${id}-radius" value="10" step="0.5">
+                        <label>线宽</label><input type="number" id="${id}-lineWidth" value="0.5" step="0.1">
+                        <label>填充</label><input type="checkbox" id="${id}-fill">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'drawEllipse':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">椭圆</div>
+                    <div class="row">
+                        <label>线宽</label><input type="number" id="${id}-lineWidth" value="0.5" step="0.1">
+                        <label>填充</label><input type="checkbox" id="${id}-fill">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'draw1DBarcode':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">条码数据</div>
+                    <div class="row"><input type="text" id="${id}-barcodeData" value="1234567890" style="width:300px"></div>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">编码选项</div>
+                    <div class="row">
+                        <label>条码类型</label><select id="${id}-barcodeType">
+                            <option value="AUTO" selected>自动 (CODE128)</option>
+                            <option value="CODE128">CODE128</option>
+                            <option value="CODE39">CODE39</option>
+                            <option value="CODE93">CODE93</option>
+                            <option value="EAN13">EAN13</option>
+                            <option value="EAN8">EAN8</option>
+                            <option value="UPC_A">UPC-A</option>
+                            <option value="UPC_E">UPC-E</option>
+                            <option value="ITF25">ITF25</option>
+                            <option value="CODABAR">CODABAR</option>
+                            <option value="ISBN">ISBN</option>
+                            <option value="ITF14">ITF14</option>
+                            <option value="GS1_128">GS1-128</option>
+                        </select>
+                        <label>文本高度</label><input type="number" id="${id}-textHeight" value="3" step="0.5">
+                    </div>
+                    <div class="row">
+                        <label>文本位置</label><select id="${id}-textPosition">
+                            <option value="">默认</option><option value="top">上方</option>
+                            <option value="bottom">下方</option><option value="none">隐藏</option>
+                        </select>
+                        <label>文本对齐</label><select id="${id}-textAlign">
+                            <option value="">默认</option><option value="left">左</option>
+                            <option value="center">中</option><option value="right">右</option>
+                        </select>
+                        <label>EAN顶部文本</label><input type="checkbox" id="${id}-topText">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'draw2DBarcode':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">2D条码内容</div>
+                    <div class="row"><input type="text" id="${id}-qrText" value="https://github.com" style="width:300px"></div>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">编码选项</div>
+                    <div class="row">
+                        <label>条码类型</label><select id="${id}-barcode2DType">
+                            <option value="qrcode" selected>QR Code</option>
+                            <option value="pdf417">PDF417</option>
+                            <option value="dataMatrix">DataMatrix</option>
+                            <option value="gridMatrix">GridMatrix</option>
+                            <option value="auto">自动</option>
+                        </select>
+                        <label>纠错级别</label><select id="${id}-eccLevel">
+                            <option value="L">L (7%)</option>
+                            <option value="M" selected>M (15%)</option>
+                            <option value="Q">Q (25%)</option>
+                            <option value="H">H (30%)</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <label>QR版本</label><input type="number" id="${id}-qrVersion" value="0" min="0" max="40">
+                        <label>掩码图案</label><input type="number" id="${id}-qrMask" value="0" min="0" max="7">
+                        <label>静区</label><input type="number" id="${id}-zoneSize" value="2" min="0" max="10">
+                        <label>模块像素</label><input type="number" id="${id}-barPixels" value="4" min="1" max="20">
+                    </div>
+                    <div class="row">
+                        <label>自动缩放</label><input type="number" id="${id}-autoScaleLevel" value="2" min="0" max="10">
+                    </div>
+                </div>
+            `;
+            break;
+        case 'drawImage':
+            extra = `
+                <div class="field-group">
+                    <div class="field-group-title">图片源</div>
+                    <div class="row">
+                        <label>Base64</label><textarea id="${id}-imageBase64" placeholder="data:image/png;base64,... 或纯Base64" style="width:400px"></textarea>
+                    </div>
+                    <div class="row">
+                        <label>URL</label><input type="text" id="${id}-imageUrl" value="" placeholder="https://..." style="width:300px">
+                    </div>
+                </div>
+                <div class="field-group">
+                    <div class="field-group-title">裁剪 (可选)</div>
+                    <div class="row">
+                        <label>裁剪X</label><input type="number" id="${id}-sx" value="0">
+                        <label>裁剪Y</label><input type="number" id="${id}-sy" value="0">
+                        <label>裁剪宽</label><input type="number" id="${id}-swidth" value="0">
+                        <label>裁剪高</label><input type="number" id="${id}-sheight" value="0">
+                    </div>
+                </div>
+            `;
+            break;
+    }
+
+    fieldsDiv.innerHTML = common + extra;
+
+    // 所有输入变更触发自动预览
+    fieldsDiv.querySelectorAll('input,select,textarea').forEach(el => {
+        el.addEventListener('input', schedulePreview);
+        el.addEventListener('change', schedulePreview);
+    });
+}
+
+function getInstruction(id) {
+    const type = document.querySelector(`#inst-${id} select`).value;
+    const inst = { type };
+    const get = (field) => { const el = document.getElementById(`${id}-${field}`); return el ? el.value : null; };
+    const getNum = (field) => { const el = document.getElementById(`${id}-${field}`); return el && el.value !== '' ? parseFloat(el.value) : null; };
+    const getBool = (field) => { const el = document.getElementById(`${id}-${field}`); return el ? el.checked : false; };
+    const getArr = (field) => {
+        const el = document.getElementById(`${id}-${field}`);
+        if (!el || !el.value) return null;
+        return el.value.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    };
+
+    // 通用字段
+    inst.x = getNum('x');
+    inst.y = getNum('y');
+    inst.width = getNum('w');
+    inst.height = getNum('h');
+    inst.rotation = getNum('rotation');
+    inst.color = get('color') || null;
+    inst.bgColor = get('bgColor') || null;
+    inst.rotateMode = get('rotateMode') || null;
+
+    switch (type) {
+        case 'drawText':
+            inst.text = get('text');
+            inst.fontHeight = getNum('fontHeight');
+            inst.minFontHeight = getNum('minFontHeight');
+            if (get('fontName')) inst.fontName = get('fontName');
+            if (get('fontStyle')) inst.fontStyle = get('fontStyle');
+            if (get('hAlign')) inst.horizontalAlignment = get('hAlign');
+            if (get('vAlign')) inst.verticalAlignment = get('vAlign');
+            if (get('autoReturn')) inst.autoReturn = get('autoReturn');
+            inst.autoShrink = getBool('autoShrink');
+            inst.charSpace = getNum('charSpace');
+            inst.lineSpace = getNum('lineSpace');
+            break;
+        case 'drawRect':
+        case 'drawRoundRect':
+            inst.lineWidth = getNum('lineWidth');
+            inst.fill = getBool('fill');
+            if (get('lineJoin')) inst.lineJoin = get('lineJoin');
+            if (get('borderAlign')) inst.borderAlign = get('borderAlign');
+            inst.dashLens = getArr('dashLens');
+            if (type === 'drawRoundRect') inst.radius = getNum('radius');
+            break;
+        case 'drawLine':
+            inst.x1 = getNum('x1');
+            inst.y1 = getNum('y1');
+            inst.x2 = getNum('x2');
+            inst.y2 = getNum('y2');
+            inst.lineWidth = getNum('lineWidth');
+            inst.dashLens = getArr('dashLens');
+            break;
+        case 'drawCircle':
+            inst.radius = getNum('radius');
+            inst.lineWidth = getNum('lineWidth');
+            inst.fill = getBool('fill');
+            break;
+        case 'drawEllipse':
+            inst.lineWidth = getNum('lineWidth');
+            inst.fill = getBool('fill');
+            break;
+        case 'draw1DBarcode':
+            inst.barcodeData = get('barcodeData');
+            inst.barcodeType = get('barcodeType');
+            inst.textHeight = getNum('textHeight');
+            if (get('textPosition')) inst.textPosition = get('textPosition');
+            if (get('textAlign')) inst.textAlign = get('textAlign');
+            inst.topText = getBool('topText');
+            break;
+        case 'draw2DBarcode':
+            inst.qrText = get('qrText');
+            inst.barcode2DType = get('barcode2DType');
+            inst.eccLevel = get('eccLevel');
+            inst.qrVersion = getNum('qrVersion');
+            inst.qrMask = getNum('qrMask');
+            inst.zoneSize = getNum('zoneSize');
+            inst.barPixels = getNum('barPixels');
+            inst.autoScaleLevel = getNum('autoScaleLevel');
+            break;
+        case 'drawImage':
+            let b64 = get('imageBase64');
+            if (b64 && b64.includes(',')) b64 = b64.split(',')[1];
+            inst.imageBase64 = b64 || null;
+            if (get('imageUrl')) inst.imageUrl = get('imageUrl');
+            inst.sx = getNum('sx');
+            inst.sy = getNum('sy');
+            inst.swidth = getNum('swidth');
+            inst.sheight = getNum('sheight');
+            break;
+    }
+    return inst;
+}
+
+function buildPrintRequest() {
+    const instructions = [];
+    for (let i = 1; i <= instructionCount; i++) {
+        const el = document.getElementById(`inst-${i}`);
+        if (el) instructions.push(getInstruction(i));
+    }
+
+    const req = {
+        widthMm: parseFloat(document.getElementById('widthMm').value),
+        heightMm: parseFloat(document.getElementById('heightMm').value),
+        orientation: parseInt(document.getElementById('orientation').value),
+        printerInfo: {
+            printerWidth: 384,
+            printerDpi: 203,
+            pageCount: parseInt(document.getElementById('pageCount').value),
+        },
+        instructions: instructions,
+    };
+
+    document.getElementById('jsonPreview').textContent = JSON.stringify(req, null, 2);
+    return req;
+}
+
+async function sendPrint() {
+    const req = buildPrintRequest();
+    const data = await apiCall('POST', '/api/print', req);
+    if (data.success) {
+        const previewDiv = document.getElementById('previewImage');
+        if (data.previewBase64) {
+            previewDiv.innerHTML = `<img src="data:image/png;base64,${data.previewBase64}" style="border:1px solid #ccc; max-width:300px; image-rendering:pixelated;">`;
+        }
+        alert(`打印成功! 发送了 ${data.chunksSent} 个数据块`);
+    } else {
+        alert(`打印失败: ${data.error}`);
+    }
+}
+
+// 初始化
+addInstruction();
+getStatus();
+
+// 画布参数变更也触发预览
+['widthMm', 'heightMm', 'orientation', 'pageCount'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('input', schedulePreview);
+        el.addEventListener('change', schedulePreview);
+    }
+});
+document.getElementById('autoPreview').addEventListener('change', schedulePreview);
+</script>
+</body>
+</html>

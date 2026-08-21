@@ -29,6 +29,16 @@ public static class Barcode2DCreator
     private static readonly Dictionary<string, IBarcode2DEncoder> s_encoderMap = new();
 
     /// <summary>
+    /// 静态构造：注册内置 2D 编码器。
+    /// </summary>
+    static Barcode2DCreator()
+    {
+        s_encoderMap[TwoDBarcodeKind.PDF417.ToUpperInvariant()] = new Pdf417Encoder();
+        s_encoderMap[TwoDBarcodeKind.DMCode.ToUpperInvariant()] = new DataMatrixEncoder();
+        s_encoderMap[TwoDBarcodeKind.GMCode.ToUpperInvariant()] = new GridMatrixEncoder();
+    }
+
+    /// <summary>
     /// 获取指定类型的 2D 编码器。对应 JS <c>ue.getEncoder(t)</c>。
     /// </summary>
     /// <param name="type">类型字符串（不区分大小写）。</param>
@@ -56,14 +66,14 @@ public static class Barcode2DCreator
 
     /// <summary>
     /// 检查并注册编码模块。对应 JS <c>ue.checkAndRegisterEncodeModule(t)</c>。
+    /// JS 实现通过全局变量自动发现；C# 中在静态构造函数已注册内置编码器，
+    /// 此方法直接查找已注册的编码器。
     /// </summary>
-    /// <remarks>
-    /// JS 实现通过 <c>window.DzPdf417</c>/<c>window.DzDataMatrix</c>/<c>window.DzGridMatrix</c>
-    /// 全局变量自动发现并注册 2D 编码模块（浏览器环境）。
-    /// C# 类库环境无全局变量机制，本方法保留为占位，始终返回 null；
-    /// 外部代码需通过 <see cref="SetEncoder"/> 显式注册编码器。
-    /// </remarks>
-    public static IBarcode2DEncoder? CheckAndRegisterEncodeModule(string? type) => null;
+    public static IBarcode2DEncoder? CheckAndRegisterEncodeModule(string? type)
+    {
+        if (string.IsNullOrEmpty(type)) return null;
+        return GetEncoder(type);
+    }
 
     /// <summary>
     /// 创建 QR 码。对应 JS <c>ue.createQRCode(t)</c>。
@@ -73,7 +83,7 @@ public static class Barcode2DCreator
 
     /// <summary>
     /// 创建 2D 条码（通用入口）。对应 JS <c>ue.create2DBarcode(t)</c>。
-    /// 流程：根据 barcodeType 查找编码器 → 未找到则尝试自动注册 → 仍无编码器则回退到 QR 码。
+    /// 流程：根据 barcodeType 查找编码器 → 未找到则尝试自动注册 → 仍无编码器则返回 null。
     /// </summary>
     public static BitMatrix? Create2DBarcode(Barcode2DRequest request)
     {
@@ -93,8 +103,8 @@ public static class Barcode2DCreator
         if (encoder != null)
             return encoder.Encode(request);
 
-        // 回退到 QR 码
-        return QrMatrix.Create(request);
+        DzLogger.Warn($"---- create2DBarcode: no encoder for type [{type}], returning null");
+        return null;
     }
 
     /// <summary>创建 PDF417 码。对应 JS <c>ue.createPDF417(t)</c>。</summary>

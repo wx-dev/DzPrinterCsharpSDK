@@ -28,7 +28,7 @@ using SkiaSharp;
 // 注册 GBK 编码（打印机中文需要）
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "info-ble";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant() : "file";
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 Console.WriteLine("=== DzPrinter Windows 示例 ===");
@@ -1141,10 +1141,10 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
     });
 
     // 生成 QR 码
-    var qrMatrix = Barcode2DCreator.CreateQRCode(new Barcode2DRequest
+    var qrMatrix = Barcode2DCreator.Create2DBarcode(new Barcode2DRequest
     {
-        Text = "https://github.com/wx-dev/DzPrinterCsharpSDK",
-        BarcodeType = TwoDBarcodeKind.QRCode,
+        Text = "https://github.com",
+        BarcodeType = TwoDBarcodeKind.DMCode,
     });
 
     if (qrMatrix != null)
@@ -1152,14 +1152,14 @@ static void DrawComplexLabel(PrinterCanvasMm canvas, string label)
         canvas.Draw2DBarcode(new DrawOptions
         {
             Data = qrMatrix,
-            X = 14,
+            X = 5,
             Y = 180,
-            Width = 20,
-            ZoneSize = 2,
-            BarPixels = 4,
-            AutoScaleLevel = 2,
-            HorizontalAlignment = Alignment.Center,
-            VerticalAlignment = Alignment.Center,
+            //Width = 35,
+            //ZoneSize = 2,
+            //BarPixels = 4,
+            //AutoScaleLevel = 2,
+            //HorizontalAlignment = Alignment.Center,
+            //VerticalAlignment = Alignment.Center,
         });
     }
 
