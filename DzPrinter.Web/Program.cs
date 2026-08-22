@@ -1,23 +1,7 @@
 using DzPrinter.Web.Models;
 using DzPrinter.Web.Services;
 
-// 从 bin\Debug\... 回溯到项目目录，确保找到 wwwroot
-var baseDir = AppContext.BaseDirectory;
-var contentRoot = baseDir;
-var wwwroot = Path.Combine(contentRoot, "wwwroot");
-if (!Directory.Exists(wwwroot))
-{
-    // bin\Debug\net8.0-windows10.0.19041.0 -> 回溯 3 级到项目目录
-    contentRoot = Path.GetFullPath(Path.Combine(baseDir, "..", "..", ".."));
-    wwwroot = Path.Combine(contentRoot, "wwwroot");
-}
-
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-{
-    Args = args,
-    ContentRootPath = contentRoot,
-    WebRootPath = wwwroot,
-});
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors(options =>
 {

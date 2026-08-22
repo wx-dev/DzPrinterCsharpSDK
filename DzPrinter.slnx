@@ -6,6 +6,7 @@
   <Project Path="DzPrinter.Jobs/DzPrinter.Jobs.csproj" />
   <Project Path="DzPrinter.Printer/DzPrinter.Printer.csproj" />
   <Project Path="DzPrinter.Samples/DzPrinter.Samples.csproj" />
+  <Project Path="DzPrinter.Web/DzPrinter.Web.csproj" />
   <Project Path="DzPrinter.Tests/DzPrinter.Tests.csproj" />
   <Project Path="DzPrinter.Transport.BleXPlat/DzPrinter.Transport.BleXPlat.csproj" />
   <Project Path="DzPrinter.Transport.Hid/DzPrinter.Transport.Hid.csproj" />

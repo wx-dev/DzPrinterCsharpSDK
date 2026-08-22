@@ -20,6 +20,7 @@
   - [7. 打印机配置与验证](#7-打印机配置与验证)
   - [8. 打印机硬件信息](#8-打印机硬件信息)
 - [9. 文件输出与 PNG 预览](#9-文件输出与-png-预览)
+- [10. Web 服务器与 HTTP API](#10-web-服务器与-http-api)
 - [枚举速查](#枚举速查)
 - [依赖项](#依赖项)
 - [许可证](#许可证)
@@ -28,7 +29,7 @@
 
 ## 功能特性
 
-- **多种连接方式**：支持 BLE 低功耗蓝牙（`WinRtBleTransport`）、HID USB（`HidSharpTransport`）和文件输出（`FileTransport`）三种传输层
+- **多种连接方式**：支持 BLE 低功耗蓝牙（`BleXPlatTransport`）、HID USB（`HidSharpTransport`）和文件输出（`FileTransport`）三种传输层
 - **文件输出虚拟打印**：无需真实打印机即可将打印数据写入文件（二进制/十六进制文本），并自动解码协议字节流生成 PNG 预览图，便于调试与脱机分析
 - **丰富的绘图能力**：文本、直线、矩形、圆角矩形、椭圆、圆、1D/2D 条码、图像
 - **1D 条码支持**：Code128、EAN-13、EAN-8、UPC-A、UPC-E、Code39、ITF25、Codabar、Code93、ISBN、GS1-128 等
@@ -38,6 +39,7 @@
 - **协议栈**：RLE 压缩分包、多页打印、DPI/浓度/速度配置
 - **设备管理**：多设备并发连接、状态事件监听、自动关闭定时器
 - **SkiaSharp 渲染**：跨平台 2D 图形引擎，与 JS SDK Canvas API 行为等价
+- **Web 服务器**：内置 ASP.NET Core HTTP API 与可视化控制台，支持浏览器实时设计与预览标签
 
 ---
 
@@ -45,18 +47,20 @@
 
 ```
 DzPrinterCsharpSDK/
-├── DzPrinter.Core/            # 核心工具：日志、字节操作、打印机状态辅助
-├── DzPrinter.Transport/       # 传输层接口定义
-├── DzPrinter.Transport.Ble/  # Windows BLE 实现（基于 WinRT）
-├── DzPrinter.Transport.Hid/  # Windows HID 实现（基于 HidSharp）
-├── DzPrinter.Transport.File/ # 文件输出虚拟传输层（调试/测试/PNG 预览）
-├── DzPrinter.Barcode/        # 1D/2D 条码编码引擎
-├── DzPrinter.Drawing/        # 画布绘制（文本/图形/条码/图像）
-├── DzPrinter.Imaging/        # 图像处理（二值化、半色调、反色等）
-├── DzPrinter.Jobs/           # 作业管理：DzPrinterManager + DrawContext
-├── DzPrinter.Printer/        # 设备管理 + 协议编码：DeviceManager + PrintEncoder + LPAPI
-├── DzPrinter.Samples/        # 使用示例程序
-└── DzPrinter.Tests/          # 单元测试
+├── DzPrinter.Core/               # 核心工具：日志、字节操作、打印机状态辅助
+├── DzPrinter.Transport/          # 传输层接口定义
+├── DzPrinter.Transport.BleXPlat/ # BLE 实现（跨平台，基于 Plugin.BLE）
+├── DzPrinter.Transport.Hid/      # Windows HID 实现（基于 HidSharp）
+├── DzPrinter.Transport.File/     # 文件输出虚拟传输层（调试/测试/PNG 预览）
+├── DzPrinter.Barcode/            # 1D/2D 条码编码引擎
+├── DzPrinter.Drawing/            # 画布绘制（文本/图形/条码/图像）
+├── DzPrinter.Imaging/            # 图像处理（二值化、半色调、反色等）
+├── DzPrinter.Jobs/                # 作业管理：DzPrinterManager + DrawContext
+├── DzPrinter.Printer/            # 设备管理 + 协议编码：DeviceManager + PrintEncoder + LPAPI
+├── DzPrinter.Samples/            # 使用示例程序
+├── DzPrinter.Web/                # ASP.NET Core Web 服务器：HTTP API + 可视化控制台
+├── DzPrinter.Tests/              # 单元测试
+└── docs/                          # 文档与截图
 ```
 
 ---
@@ -845,6 +849,195 @@ else
         Console.WriteLine($"警告: {w}");
 }
 ```
+
+---
+
+## 10. Web 服务器与 HTTP API
+
+`DzPrinter.Web` 是基于 ASP.NET Core 的 Web 服务，通过 HTTP API 暴露打印机 SDK 的全部能力，并内置可视化控制台，可在浏览器中完成设备连接、标签设计、实时预览与打印。
+
+### 快速启动
+
+```bash
+cd DzPrinter.Web
+dotnet run
+```
+
+默认监听地址（见 `Properties/launchSettings.json`）：
+
+- HTTPS: `https://localhost:11980`
+- HTTP: `http://localhost:11981`
+
+启动后浏览器自动打开控制台，也可手动访问 `http://localhost:11981/`。
+
+### 可视化控制台
+
+控制台（`wwwroot/index.html`）提供四块功能区域：
+
+1. **设备发现与连接**：选择 File / BLE / HID 传输类型，搜索并连接打印机
+2. **打印内容设计**：以指令列表方式组织画布——文本、矩形、圆角矩形、直线、圆形、椭圆、1D 条码、2D 条码、图片，每条指令可独立配置位置、尺寸、样式与编码参数
+3. **实时预览**：修改任意参数后自动调用 `/api/print/preview` 生成 PNG 预览（基于 SkiaSharp 渲染，所见即所得）
+4. **API 响应**：展示每个请求的原始 JSON 响应，便于调试
+
+控制台总览：
+
+![DzPrinter Web 控制台 - 总览](docs/web-console-overview.png)
+
+内容设计区域（指令编辑 + 实时预览）：
+
+![DzPrinter Web 控制台 - 内容设计](docs/web-console-design.png)
+
+### 配置
+
+`appsettings.json` 控制默认传输类型与各传输层参数：
+
+```json
+{
+  "Printer": {
+    "Transport": "file",
+    "File": {
+      "OutputPath": "output/print.bin",
+      "Format": "RawBinary",
+      "SavePngPreview": true,
+      "PngOutputPath": "output/preview.png",
+      "PngScale": 2
+    },
+    "Ble": {
+      "ServiceUuid": "000018f0-0000-1000-8000-00805f9b34fb",
+      "PackSize": 20,
+      "ScanTimeoutMs": 5000
+    },
+    "Hid": {
+      "NameContains": "Printer",
+      "ReportId": 0,
+      "ReadTimeoutMs": 500,
+      "WriteTimeoutMs": 2000,
+      "SendIntervalMs": 20
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `Printer:Transport` | 默认传输类型：`file` / `ble` / `hid` |
+| `Printer:File:*` | File 传输层参数，参见 [9. 文件输出与 PNG 预览](#9-文件输出与-png-预览) |
+| `Printer:Ble:*` | BLE 传输层参数：服务 UUID、分包大小、扫描超时 |
+| `Printer:Hid:*` | HID 传输层参数：名称过滤、报告 ID、读写超时、发送间隔 |
+
+### HTTP API 一览
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/devices/discover?transport={file\|ble\|hid}` | 发现设备 |
+| `POST` | `/api/devices/connect` | 连接设备（Body: `{ "deviceId": "..." }`） |
+| `POST` | `/api/devices/disconnect` | 断开当前设备 |
+| `GET` | `/api/devices/status` | 查询连接状态 |
+| `GET` | `/api/devices/info` | 查询打印机硬件信息（DPI/宽度/电池等） |
+| `GET` | `/api/devices/printable-status` | 查询可打印状态码 |
+| `POST` | `/api/print/preview` | 只绘制不打印，返回 Base64 PNG 预览 |
+| `POST` | `/api/print` | 绘制并打印，返回结果 + 预览 |
+| `POST` | `/api/print/raw` | 发送 Base64 编码的原始协议数据 |
+
+### 请求示例
+
+**发现设备**
+
+```bash
+curl "http://localhost:11981/api/devices/discover?transport=file"
+```
+
+```json
+{
+  "devices": [
+    {
+      "deviceId": "D60-File",
+      "name": "D60-File",
+      "modelName": "D60",
+      "rssi": 0,
+      "deviceType": "File"
+    }
+  ]
+}
+```
+
+**预览（不打印）**
+
+```bash
+curl -X POST "http://localhost:11981/api/print/preview" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "widthMm": 48,
+    "heightMm": 48,
+    "orientation": 0,
+    "printerInfo": {
+      "printerWidth": 384,
+      "printerDpi": 203,
+      "pageCount": 1,
+      "gapType": "none"
+    },
+    "instructions": [
+      {
+        "type": "drawText",
+        "x": 2, "y": 2, "width": 44, "height": 10,
+        "text": "DzPrinter SDK",
+        "fontHeight": 3,
+        "fontStyle": "bold",
+        "horizontalAlignment": "center"
+      },
+      {
+        "type": "draw2DBarcode",
+        "x": 14, "y": 15, "width": 20, "height": 20,
+        "qrText": "https://github.com",
+        "barcode2DType": "qrcode",
+        "eccLevel": "M",
+        "zoneSize": 2,
+        "barPixels": 4,
+        "autoScaleLevel": 2
+      }
+    ]
+  }'
+```
+
+返回值包含 `previewBase64` 字段，可直接用于 `<img src="data:image/png;base64,...">`。
+
+**连接并打印**
+
+```bash
+# 1. 发现设备
+curl "http://localhost:11981/api/devices/discover?transport=ble"
+
+# 2. 连接
+curl -X POST "http://localhost:11981/api/devices/connect" \
+  -H "Content-Type: application/json" \
+  -d '{"deviceId":"XX:XX:XX:XX:XX:XX"}'
+
+# 3. 打印（同 /api/print/preview 的 Body，改用 /api/print）
+curl -X POST "http://localhost:11981/api/print" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# 4. 断开
+curl -X POST "http://localhost:11981/api/devices/disconnect"
+```
+
+### 绘制指令 DTO
+
+每条 `instructions` 数组元素对应一次画布调用，`type` 字段决定指令类型：
+
+| `type` | 对应 API | 关键字段 |
+|---|---|---|
+| `drawText` | `Canvas.DrawText` | `text`, `fontHeight`, `fontName`, `fontStyle`, `horizontalAlignment`, `autoReturn`, `charSpace`, `lineSpace` |
+| `drawRect` | `Canvas.DrawRect` | `fill`, `lineWidth`, `lineJoin`, `borderAlign`, `dashLens` |
+| `drawRoundRect` | `Canvas.DrawRoundRect` | `fill`, `lineWidth`, `radius`, `dashLens` |
+| `drawLine` | `Canvas.DrawLine` | `x1`, `y1`, `x2`, `y2`, `lineWidth`, `dashLens` |
+| `drawCircle` | `Canvas.DrawCircle` | `x`, `y`, `radius`, `fill`, `lineWidth` |
+| `drawEllipse` | `Canvas.DrawEllipse` | `fill`, `lineWidth` |
+| `draw1DBarcode` | `Canvas.Draw1DBarcode` | `barcodeData`, `barcodeType`, `textHeight`, `textPosition`, `textAlign` |
+| `draw2DBarcode` | `Canvas.Draw2DBarcode` | `qrText`, `barcode2DType`, `eccLevel`, `qrVersion`, `qrMask`, `zoneSize`, `barPixels`, `autoScaleLevel` |
+| `drawImage` | `Canvas.DrawImage` | `imageBase64`, `imageUrl`, `sx`, `sy`, `swidth`, `sheight` |
+
+通用字段（所有指令均支持）：`x`, `y`, `width`, `height`, `rotation`, `color`, `bgColor`, `rotateMode`, `padding`。
 
 ---
 
